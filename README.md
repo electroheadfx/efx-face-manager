@@ -183,7 +183,5 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ## Credits
 
 - [Hugging Face](https://huggingface.co) - Model hosting
-- [MLX](https://github.com/ml-explore/mlx) - Apple's ML framework
-- [mlx-openai-server](https://github.com/cubist38/mlx-openai-server) - OpenAI-compatible server for MLX
+- [mlx-openai-server](https://github.com/cubist38/mlx-openai-server) - OpenAI-compatible server for MLX (Apple's ML framework)
 - [gum](https://github.com/charmbracelet/gum) - Terminal UI toolkit
-- [mlx-community](https://huggingface.co/mlx-community) - MLX model conversions
