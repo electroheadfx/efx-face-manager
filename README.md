@@ -6,11 +6,18 @@
 └─┘└  ┴ └─   └  ┴ ┴└─┘└─┘
 
 MLX Hugging Face Manager
+by Laurent Marques
 ```
 
-**Version: 0.0.1**
+**Version: 0.0.2**
 
 A terminal-based LLM model manager for Apple Silicon Macs. Browse, install, and run MLX-optimized models from Hugging Face with an intuitive TUI interface.
+
+## Demo
+
+[Watch Demo Video](./efx-face.mp4)
+
+> 📹 See efx-face-manager in action - browse models, search, install, and run MLX-optimized LLMs
 
 ## Features
 
@@ -185,3 +192,5 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 - [Hugging Face](https://huggingface.co) - Model hosting
 - [mlx-openai-server](https://github.com/cubist38/mlx-openai-server) - OpenAI-compatible server for MLX (Apple's ML framework)
 - [gum](https://github.com/charmbracelet/gum) - Terminal UI toolkit
+- [VHS](https://github.com/charmbracelet/vhs) - Terminal GIF recorder for scripted CLI demos
+- Coded with [Qoder](https://qoder.com/)
