@@ -7,7 +7,7 @@
 # Install VHS: brew install vhs
 
 # Output settings
-# Output efx-face.gif
+Output efx-face.gif
 Output efx-face.mp4
 
 # Terminal configuration

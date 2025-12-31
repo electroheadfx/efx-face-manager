@@ -15,9 +15,9 @@ A terminal-based LLM model manager for Apple Silicon Macs. Browse, install, and 
 
 ## Demo
 
-[Watch Demo Video](./efx-face.mp4)
+![efx-face-manager Demo](./efx-face.gif)
 
-> 📹 See efx-face-manager in action - browse models, search, install, and run MLX-optimized LLMs
+> 📹 Browse, search, install, and run MLX-optimized LLMs from Hugging Face
 
 ## Features
 
