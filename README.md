@@ -9,7 +9,7 @@ MLX Hugging Face Manager
 by Laurent Marques
 ```
 
-**Version: 0.0.2**
+**Version: 0.1.0**
 
 A terminal-based LLM model manager for Apple Silicon Macs. Browse, install, and run MLX-optimized models from Hugging Face with an intuitive TUI interface.
 
@@ -21,13 +21,39 @@ A terminal-based LLM model manager for Apple Silicon Macs. Browse, install, and 
 
 ## Features
 
+### Core Features
 - **Browse Models** - Access 3000+ MLX models from Hugging Face with pagination
-- **Search API** - Search models directly via Hugging Face API
+- **Unified Search** - Search models directly via Hugging Face API with live filtering
 - **Model Details** - View downloads, likes, size, and more before installing
 - **Install Models** - Download and set up models with one click
 - **Run Models** - Launch models with MLX OpenAI Server
 - **Uninstall** - Clean removal of models and cache
 - **Multiple Sources** - Browse mlx-community, lmstudio-community, or all models
+
+### Advanced Configuration (v0.1.0)
+- **🎯 Preset Configurations** - Quick-launch with 6 model type presets:
+  - `lm` - Text-only language models
+  - `multimodal` - Vision, audio, and text processing
+  - `image-generation` - Qwen image generation (default: q16)
+  - `image-edit` - Qwen image editing (default: q16)
+  - `embeddings` - Text embeddings generation
+  - `whisper` - Audio transcription
+
+- **⚙️ Interactive Configuration** - Single-page settings with live preview:
+  - Configure all parameters on one screen
+  - Direct editing by clicking parameter lines
+  - See current values while modifying
+  - Full control over quantization, LoRA, server settings
+
+- **🔧 Model-Type Specific Options**:
+  - **LM/Multimodal**: Context length, tool calling, parsers, chat templates
+  - **Image Generation**: Config name (flux/qwen), quantization (4/8/16), LoRA adapters
+  - **Image Edit**: Context-aware editing, quantization, LoRA support
+  - **Whisper**: Queue management, concurrency control
+  - **Embeddings**: Server configuration, memory optimization
+
+- **📋 Command Preview** - Review full command before execution
+- **🔄 Modify & Re-run** - Edit presets, preview, and relaunch without restarting
 
 ## Prerequisites
 
@@ -110,10 +136,39 @@ export MODEL_DIR="/path/to/your/models"
 
 | Option | Description |
 |--------|-------------|
-| **Run an Installed LLM** | Select and launch a model with MLX OpenAI Server |
+| **Run an Installed LLM** | Select and launch a model with preset configurations or custom settings |
 | **Install a New Hugging Face LLM** | Browse and download models from Hugging Face |
 | **Uninstall an LLM** | Remove installed models and clean cache |
 | **Exit** | Quit the application |
+
+### Running Models (v0.1.0)
+
+#### Quick Launch with Presets
+1. Select **Run an Installed LLM**
+2. Choose a model from installed models
+3. Select a preset configuration:
+   - **lm (text-only)** - Default language model
+   - **multimodal (vision, audio)** - Multimodal processing
+   - **image-generation (qwen-image, q16)** - Image generation with Qwen
+   - **image-edit (qwen-image-edit, q16)** - Image editing with Qwen
+   - **embeddings** - Text embeddings
+   - **whisper (audio transcription)** - Speech-to-text
+4. Choose action:
+   - **▶ Run** - Launch immediately with preset defaults
+   - **⚙️  Modify config...** - Customize parameters before launch
+   - **✖ Cancel** - Go back
+
+#### Interactive Configuration
+When you select **Modify config...**:
+- All parameters displayed on one screen
+- Click any parameter line to edit its value
+- See current values and defaults in real-time
+- Configure:
+  - Model type-specific options (context length, quantization, etc.)
+  - Server settings (port, host, logging)
+  - Advanced options (LoRA adapters, tool calling, parsers)
+- Preview full command before execution
+- Cancel returns to preset menu (preserves navigation stack)
 
 ### Installing Models
 
@@ -122,9 +177,12 @@ export MODEL_DIR="/path/to/your/models"
    - `mlx-community` - MLX-optimized models (recommended)
    - `lmstudio-community` - LMStudio models
    - `All Models` - Browse all Hugging Face models
-3. Browse models (100 per page) or use **Search API** to filter
-4. Select a model to view details
+3. Choose browse mode:
+   - **🔍 Search a model...** - Enter search term to filter models
+   - **📋 Show all models...** - Browse paginated list (100 per page)
+4. Select a model to view details (downloads, likes, size, last update)
 5. Choose **Install this LLM** to download
+6. Press ESC or Back to return to browse mode menu (not root)
 
 ### Model Storage Structure
 

@@ -7,7 +7,7 @@
 # Uses gum for interactive selection
 # https://github.com/charmbracelet/gum
 
-VERSION="0.0.2"
+VERSION="0.1.0"
 
 clear
 
@@ -45,8 +45,130 @@ export MODEL_DIR="${MODEL_DIR:-/Volumes/T7/Téléchargements/ollama/mlx-server}"
 # Ensure directory exists
 mkdir -p "$MODEL_DIR"
 
-# Function to run an installed model
-run_model() {
+# Global array for command arguments (used for Bash 3.x compatibility)
+CMD_ARGS=()
+
+# Preset configurations for each model type
+# Returns: preset description for display
+get_preset_description() {
+    local preset=$1
+    case "$preset" in
+        "lm") echo "lm (text-only)" ;;
+        "multimodal") echo "multimodal (vision, audio)" ;;
+        "image-generation") echo "image-generation (qwen-image, q16)" ;;
+        "image-edit") echo "image-edit (qwen-image-edit, q16)" ;;
+        "embeddings") echo "embeddings" ;;
+        "whisper") echo "whisper (audio transcription)" ;;
+    esac
+}
+
+# Apply preset configuration to CMD_ARGS
+apply_preset_config() {
+    local preset=$1
+    local model_path=$2
+    
+    CMD_ARGS=("--model-path" "$model_path" "--model-type" "$preset" "--host" "0.0.0.0" "--port" "8000")
+    
+    case "$preset" in
+        "image-generation")
+            CMD_ARGS+=("--config-name" "qwen-image" "--quantize" "16")
+            ;;
+        "image-edit")
+            CMD_ARGS+=("--config-name" "qwen-image-edit" "--quantize" "16")
+            ;;
+    esac
+}
+
+# Show command preview and confirm launch
+confirm_and_launch() {
+    local full_cmd="mlx-openai-server launch ${CMD_ARGS[*]}"
+    echo ""
+    gum style \
+        --border rounded \
+        --border-foreground 99 \
+        --padding "1 2" \
+        --width 80 \
+        "$(gum style --bold --foreground 212 "Command to execute:")
+
+$full_cmd"
+    echo ""
+    
+    local confirm=$(gum choose \
+        --header "Ready to launch?" \
+        "▶ Run" \
+        "✖ Cancel")
+    
+    if [[ "$confirm" == "▶ Run" ]]; then
+        echo "Starting MLX OpenAI Server..."
+        mlx-openai-server launch "${CMD_ARGS[@]}"
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Handle preset action menu (Run / Modify config / Cancel)
+handle_preset_action() {
+    local model_name="$1"
+    local preset="$2"
+    local model_path="$MODEL_DIR/$model_name"
+    local preset_desc=$(get_preset_description "$preset")
+    
+    while true; do
+        local action=$(gum choose \
+            --header "$model_name - $preset_desc" \
+            "▶ Run" \
+            "⚙️  Modify config..." \
+            "✖ Cancel")
+        
+        case "$action" in
+            "▶ Run")
+                apply_preset_config "$preset" "$model_path"
+                if confirm_and_launch; then
+                    return 0  # Success, exit to main menu
+                fi
+                # If cancelled at confirmation, stay in preset action menu
+                ;;
+            "⚙️  Modify config...")
+                # Initialize with preset defaults
+                apply_preset_config "$preset" "$model_path"
+                
+                # Open type-specific configuration
+                local config_result=0
+                case "$preset" in
+                    "lm"|"multimodal")
+                        configure_lm_options "$preset" || config_result=1
+                        ;;
+                    "image-generation")
+                        configure_image_gen_options_with_defaults || config_result=1
+                        ;;
+                    "image-edit")
+                        configure_image_edit_options_with_defaults || config_result=1
+                        ;;
+                    "whisper")
+                        configure_whisper_options || config_result=1
+                        ;;
+                    "embeddings")
+                        configure_server_options || config_result=1
+                        ;;
+                esac
+                
+                if [[ $config_result -eq 0 ]]; then
+                    if confirm_and_launch; then
+                        return 0  # Success, exit to main menu
+                    fi
+                fi
+                # If cancelled, stay in preset action menu
+                ;;
+            *)
+                return 1  # Cancel, go back to preset selection
+                ;;
+        esac
+    done
+}
+
+# Function to run an installed model with default settings
+run_model_default() {
     local model_name="$1"
     local model_path="$MODEL_DIR/$model_name"
     
@@ -56,6 +178,634 @@ run_model() {
     else
         echo "Error: Model not found or not a symlink: $model_path"
     fi
+}
+
+# Function to run model with custom options
+run_model_with_options() {
+    local model_name="$1"
+    local model_path="$MODEL_DIR/$model_name"
+    
+    if [[ ! -L "$model_path" ]]; then
+        echo "Error: Model not found or not a symlink: $model_path"
+        return 1
+    fi
+    
+    # Reset global command arguments
+    CMD_ARGS=("--model-path" "$model_path")
+    
+    # Model type selection loop
+    while true; do
+        local model_type=$(gum choose \
+            --header "Select Model Type" \
+            "lm (text-only)" \
+            "multimodal (text, vision, audio)" \
+            "image-generation" \
+            "image-edit" \
+            "embeddings" \
+            "whisper (audio transcription)" \
+            "✖ Back")
+        
+        if [[ -z "$model_type" || "$model_type" == "✖ Back" ]]; then
+            return 1
+        fi
+        
+        # Extract model type value
+        local type_value
+        case "$model_type" in
+            "lm (text-only)") type_value="lm" ;;
+            "multimodal (text, vision, audio)") type_value="multimodal" ;;
+            "whisper (audio transcription)") type_value="whisper" ;;
+            *) type_value="$model_type" ;;
+        esac
+        
+        CMD_ARGS+=("--model-type" "$type_value")
+        
+        # Get type-specific options (if cancelled, return to run mode menu)
+        local config_result=0
+        case "$type_value" in
+            "lm"|"multimodal")
+                configure_lm_options "$type_value" || config_result=1
+                ;;
+            "image-generation")
+                configure_image_gen_options || config_result=1
+                ;;
+            "image-edit")
+                configure_image_edit_options || config_result=1
+                ;;
+            "whisper")
+                configure_whisper_options || config_result=1
+                ;;
+            "embeddings")
+                configure_server_options || config_result=1
+                ;;
+        esac
+        
+        # If cancelled, return to run mode menu
+        if [[ $config_result -eq 1 ]]; then
+            return 1
+        fi
+        
+        # Show final command and confirm
+        local full_cmd="mlx-openai-server launch ${CMD_ARGS[*]}"
+        echo ""
+        gum style \
+            --border rounded \
+            --border-foreground 99 \
+            --padding "1 2" \
+            --width 80 \
+            "$(gum style --bold --foreground 212 "Command to execute:")
+
+$full_cmd"
+        echo ""
+        
+        local confirm=$(gum choose \
+            --header "Ready to launch?" \
+            "▶ Run" \
+            "✖ Cancel")
+        
+        if [[ "$confirm" == "▶ Run" ]]; then
+            echo "Starting MLX OpenAI Server..."
+            mlx-openai-server launch "${CMD_ARGS[@]}"
+            return 0
+        else
+            return 1
+        fi
+    done
+}
+
+# Configure options for lm/multimodal models
+configure_lm_options() {
+    local model_type=$1
+    
+    # Initialize option values
+    local context_length_val=""
+    local auto_tool_choice=false
+    local tool_call_parser_val=""
+    local reasoning_parser_val=""
+    local message_converter_val=""
+    local trust_remote_code=false
+    local chat_template_file_val=""
+    local debug_mode=false
+    local disable_auto_resize=false
+    local port_val=""
+    local host_val=""
+    local log_level_val=""
+    
+    # Interactive settings loop
+    while true; do
+        # Build options list based on model type
+        local multimodal_line=""
+        [[ "$model_type" == "multimodal" ]] && multimodal_line="Disable auto resize: $([[ $disable_auto_resize == true ]] && echo 'enabled' || echo 'disabled')
+"
+        
+        local menu="Context length: ${context_length_val:-(not set)}
+Auto tool choice: $([[ $auto_tool_choice == true ]] && echo 'enabled' || echo 'disabled')
+Tool call parser: ${tool_call_parser_val:-(not set)}
+Reasoning parser: ${reasoning_parser_val:-(not set)}
+Message converter: ${message_converter_val:-(not set)}
+Trust remote code: $([[ $trust_remote_code == true ]] && echo 'enabled' || echo 'disabled')
+Chat template file: ${chat_template_file_val:-(not set)}
+Debug mode: $([[ $debug_mode == true ]] && echo 'enabled' || echo 'disabled')
+${multimodal_line}Port: ${port_val:-8000 (default)}
+Host: ${host_val:-0.0.0.0 (default)}
+Log level: ${log_level_val:-INFO (default)}
+──────────
+✅ Done - continue to launch
+✖ Cancel"
+        
+        local selection=$(echo "$menu" | gum choose --height 20 \
+            --header "Configure $model_type options - Select to edit")
+        
+        case "$selection" in
+            "Context length:"*)
+                context_length_val=$(gum input --placeholder "8192" --header "Context length" --value "$context_length_val")
+                ;;
+            "Auto tool choice:"*)
+                [[ $auto_tool_choice == true ]] && auto_tool_choice=false || auto_tool_choice=true
+                ;;
+            "Tool call parser:"*)
+                tool_call_parser_val=$(gum choose --header "Tool call parser" \
+                    "qwen3" "glm4_moe" "qwen3_moe" "qwen3_next" "qwen3_vl" "harmony" "minimax_m2" "(clear)")
+                [[ "$tool_call_parser_val" == "(clear)" ]] && tool_call_parser_val=""
+                ;;
+            "Reasoning parser:"*)
+                reasoning_parser_val=$(gum choose --header "Reasoning parser" \
+                    "qwen3" "glm4_moe" "qwen3_moe" "qwen3_next" "qwen3_vl" "harmony" "minimax_m2" "(clear)")
+                [[ "$reasoning_parser_val" == "(clear)" ]] && reasoning_parser_val=""
+                ;;
+            "Message converter:"*)
+                message_converter_val=$(gum choose --header "Message converter" \
+                    "glm4_moe" "minimax_m2" "nemotron3_nano" "(clear)")
+                [[ "$message_converter_val" == "(clear)" ]] && message_converter_val=""
+                ;;
+            "Trust remote code:"*)
+                [[ $trust_remote_code == true ]] && trust_remote_code=false || trust_remote_code=true
+                ;;
+            "Chat template file:"*)
+                chat_template_file_val=$(gum input --placeholder "/path/to/template.jinja" --header "Chat template file path" --value "$chat_template_file_val")
+                ;;
+            "Debug mode:"*)
+                [[ $debug_mode == true ]] && debug_mode=false || debug_mode=true
+                ;;
+            "Disable auto resize:"*)
+                [[ $disable_auto_resize == true ]] && disable_auto_resize=false || disable_auto_resize=true
+                ;;
+            "Port:"*)
+                port_val=$(gum input --placeholder "8000" --header "Server port" --value "$port_val")
+                ;;
+            "Host:"*)
+                host_val=$(gum input --placeholder "0.0.0.0" --header "Server host" --value "$host_val")
+                ;;
+            "Log level:"*)
+                log_level_val=$(gum choose --header "Log level" "DEBUG" "INFO" "WARNING" "ERROR" "CRITICAL" "(clear)")
+                [[ "$log_level_val" == "(clear)" ]] && log_level_val=""
+                ;;
+            *"Done"*)
+                [[ -n "$context_length_val" ]] && CMD_ARGS+=("--context-length" "$context_length_val")
+                [[ $auto_tool_choice == true ]] && CMD_ARGS+=("--enable-auto-tool-choice")
+                [[ -n "$tool_call_parser_val" ]] && CMD_ARGS+=("--tool-call-parser" "$tool_call_parser_val")
+                [[ -n "$reasoning_parser_val" ]] && CMD_ARGS+=("--reasoning-parser" "$reasoning_parser_val")
+                [[ -n "$message_converter_val" ]] && CMD_ARGS+=("--message-converter" "$message_converter_val")
+                [[ $trust_remote_code == true ]] && CMD_ARGS+=("--trust-remote-code")
+                [[ -n "$chat_template_file_val" ]] && CMD_ARGS+=("--chat-template-file" "$chat_template_file_val")
+                [[ $debug_mode == true ]] && CMD_ARGS+=("--debug")
+                [[ $disable_auto_resize == true ]] && CMD_ARGS+=("--disable-auto-resize")
+                [[ -n "$port_val" ]] && CMD_ARGS+=("--port" "$port_val")
+                [[ -n "$host_val" ]] && CMD_ARGS+=("--host" "$host_val")
+                [[ -n "$log_level_val" ]] && CMD_ARGS+=("--log-level" "$log_level_val")
+                break
+                ;;
+            *"Cancel"*|""|"─"*)
+                return 1
+                ;;
+        esac
+    done
+}
+
+# Configure options for image-generation models
+configure_image_gen_options() {
+    # Config name is required for image-generation
+    local config=$(gum choose --header "Select config-name (required)" \
+        "flux-schnell" "flux-dev" "flux-krea-dev" "qwen-image" "z-image-turbo" "fibo")
+    
+    if [[ -z "$config" ]]; then
+        config="flux-schnell"
+    fi
+    CMD_ARGS+=("--config-name" "$config")
+    
+    # Initialize option values
+    local quantize_val=""
+    local lora_paths_val=""
+    local lora_scales_val=""
+    local port_val=""
+    local host_val=""
+    local log_level_val=""
+    
+    # Interactive settings loop
+    while true; do
+        local menu="Quantize level: ${quantize_val:-(not set)}
+LoRA paths: ${lora_paths_val:-(not set)}
+LoRA scales: ${lora_scales_val:-(not set)}
+Port: ${port_val:-8000 (default)}
+Host: ${host_val:-0.0.0.0 (default)}
+Log level: ${log_level_val:-INFO (default)}
+──────────
+✅ Done - continue to launch
+✖ Cancel"
+        
+        local selection=$(echo "$menu" | gum choose --height 15 \
+            --header "Configure image-generation options ($config) - Select to edit")
+        
+        case "$selection" in
+            "Quantize level:"*)
+                quantize_val=$(gum choose --header "Quantize level" "4" "8" "16" "(clear)")
+                [[ "$quantize_val" == "(clear)" ]] && quantize_val=""
+                ;;
+            "LoRA paths:"*)
+                lora_paths_val=$(gum input --placeholder "/path/to/lora1.safetensors,/path/to/lora2.safetensors" --header "LoRA paths (comma-separated)" --value "$lora_paths_val")
+                if [[ -n "$lora_paths_val" ]]; then
+                    lora_scales_val=$(gum input --placeholder "0.8,0.6" --header "LoRA scales (must match paths count)" --value "$lora_scales_val")
+                fi
+                ;;
+            "LoRA scales:"*)
+                lora_scales_val=$(gum input --placeholder "0.8,0.6" --header "LoRA scales" --value "$lora_scales_val")
+                ;;
+            "Port:"*)
+                port_val=$(gum input --placeholder "8000" --header "Server port" --value "$port_val")
+                ;;
+            "Host:"*)
+                host_val=$(gum input --placeholder "0.0.0.0" --header "Server host" --value "$host_val")
+                ;;
+            "Log level:"*)
+                log_level_val=$(gum choose --header "Log level" "DEBUG" "INFO" "WARNING" "ERROR" "CRITICAL" "(clear)")
+                [[ "$log_level_val" == "(clear)" ]] && log_level_val=""
+                ;;
+            *"Done"*)
+                [[ -n "$quantize_val" ]] && CMD_ARGS+=("--quantize" "$quantize_val")
+                [[ -n "$lora_paths_val" ]] && CMD_ARGS+=("--lora-paths" "$lora_paths_val")
+                [[ -n "$lora_scales_val" ]] && CMD_ARGS+=("--lora-scales" "$lora_scales_val")
+                [[ -n "$port_val" ]] && CMD_ARGS+=("--port" "$port_val")
+                [[ -n "$host_val" ]] && CMD_ARGS+=("--host" "$host_val")
+                [[ -n "$log_level_val" ]] && CMD_ARGS+=("--log-level" "$log_level_val")
+                break
+                ;;
+            *"Cancel"*|""|"─"*)
+                return 1
+                ;;
+        esac
+    done
+}
+
+# Configure options for image-generation with preset defaults (qwen-image, q16)
+configure_image_gen_options_with_defaults() {
+    # Initialize option values with preset defaults
+    local config_val="qwen-image"
+    local quantize_val="16"
+    local lora_paths_val=""
+    local lora_scales_val=""
+    local port_val="8000"
+    local host_val="0.0.0.0"
+    local log_level_val=""
+    
+    # Interactive settings loop
+    while true; do
+        local menu="Config name: $config_val
+Quantize level: $quantize_val
+LoRA paths: ${lora_paths_val:-(not set)}
+LoRA scales: ${lora_scales_val:-(not set)}
+Port: $port_val
+Host: $host_val
+Log level: ${log_level_val:-INFO (default)}
+──────────
+✅ Done - continue to launch
+✖ Cancel"
+        
+        local selection=$(echo "$menu" | gum choose --height 15 \
+            --header "Configure image-generation options - Select to edit")
+        
+        case "$selection" in
+            "Config name:"*)
+                config_val=$(gum choose --header "Select config-name" \
+                    "flux-schnell" "flux-dev" "flux-krea-dev" "qwen-image" "z-image-turbo" "fibo")
+                [[ -z "$config_val" ]] && config_val="qwen-image"
+                ;;
+            "Quantize level:"*)
+                quantize_val=$(gum choose --header "Quantize level" "4" "8" "16")
+                [[ -z "$quantize_val" ]] && quantize_val="16"
+                ;;
+            "LoRA paths:"*)
+                lora_paths_val=$(gum input --placeholder "/path/to/lora1.safetensors" --header "LoRA paths (comma-separated)" --value "$lora_paths_val")
+                if [[ -n "$lora_paths_val" ]]; then
+                    lora_scales_val=$(gum input --placeholder "0.8,0.6" --header "LoRA scales (must match paths count)" --value "$lora_scales_val")
+                fi
+                ;;
+            "LoRA scales:"*)
+                lora_scales_val=$(gum input --placeholder "0.8,0.6" --header "LoRA scales" --value "$lora_scales_val")
+                ;;
+            "Port:"*)
+                port_val=$(gum input --placeholder "8000" --header "Server port" --value "$port_val")
+                [[ -z "$port_val" ]] && port_val="8000"
+                ;;
+            "Host:"*)
+                host_val=$(gum input --placeholder "0.0.0.0" --header "Server host" --value "$host_val")
+                [[ -z "$host_val" ]] && host_val="0.0.0.0"
+                ;;
+            "Log level:"*)
+                log_level_val=$(gum choose --header "Log level" "DEBUG" "INFO" "WARNING" "ERROR" "CRITICAL" "(clear)")
+                [[ "$log_level_val" == "(clear)" ]] && log_level_val=""
+                ;;
+            *"Done"*)
+                # Rebuild CMD_ARGS with configured values
+                local model_path=$(echo "${CMD_ARGS[@]}" | grep -o "\-\-model-path [^ ]*" | cut -d' ' -f2)
+                CMD_ARGS=("--model-path" "$model_path" "--model-type" "image-generation")
+                CMD_ARGS+=("--config-name" "$config_val")
+                CMD_ARGS+=("--quantize" "$quantize_val")
+                [[ -n "$lora_paths_val" ]] && CMD_ARGS+=("--lora-paths" "$lora_paths_val")
+                [[ -n "$lora_scales_val" ]] && CMD_ARGS+=("--lora-scales" "$lora_scales_val")
+                CMD_ARGS+=("--port" "$port_val")
+                CMD_ARGS+=("--host" "$host_val")
+                [[ -n "$log_level_val" ]] && CMD_ARGS+=("--log-level" "$log_level_val")
+                break
+                ;;
+            *"Cancel"*|""|"─"*)
+                return 1
+                ;;
+        esac
+    done
+}
+
+# Configure options for image-edit models
+configure_image_edit_options() {
+    # Config name is required for image-edit
+    local config=$(gum choose --header "Select config-name (required)" \
+        "flux-kontext-dev" "qwen-image-edit")
+    
+    if [[ -z "$config" ]]; then
+        config="flux-kontext-dev"
+    fi
+    CMD_ARGS+=("--config-name" "$config")
+    
+    # Initialize option values
+    local quantize_val=""
+    local lora_paths_val=""
+    local lora_scales_val=""
+    local port_val=""
+    local host_val=""
+    local log_level_val=""
+    
+    # Interactive settings loop
+    while true; do
+        local menu="Quantize level: ${quantize_val:-(not set)}
+LoRA paths: ${lora_paths_val:-(not set)}
+LoRA scales: ${lora_scales_val:-(not set)}
+Port: ${port_val:-8000 (default)}
+Host: ${host_val:-0.0.0.0 (default)}
+Log level: ${log_level_val:-INFO (default)}
+──────────
+✅ Done - continue to launch
+✖ Cancel"
+        
+        local selection=$(echo "$menu" | gum choose --height 15 \
+            --header "Configure image-edit options ($config) - Select to edit")
+        
+        case "$selection" in
+            "Quantize level:"*)
+                quantize_val=$(gum choose --header "Quantize level" "4" "8" "16" "(clear)")
+                [[ "$quantize_val" == "(clear)" ]] && quantize_val=""
+                ;;
+            "LoRA paths:"*)
+                lora_paths_val=$(gum input --placeholder "/path/to/lora1.safetensors,/path/to/lora2.safetensors" --header "LoRA paths (comma-separated)" --value "$lora_paths_val")
+                if [[ -n "$lora_paths_val" ]]; then
+                    lora_scales_val=$(gum input --placeholder "0.8,0.6" --header "LoRA scales (must match paths count)" --value "$lora_scales_val")
+                fi
+                ;;
+            "LoRA scales:"*)
+                lora_scales_val=$(gum input --placeholder "0.8,0.6" --header "LoRA scales" --value "$lora_scales_val")
+                ;;
+            "Port:"*)
+                port_val=$(gum input --placeholder "8000" --header "Server port" --value "$port_val")
+                ;;
+            "Host:"*)
+                host_val=$(gum input --placeholder "0.0.0.0" --header "Server host" --value "$host_val")
+                ;;
+            "Log level:"*)
+                log_level_val=$(gum choose --header "Log level" "DEBUG" "INFO" "WARNING" "ERROR" "CRITICAL" "(clear)")
+                [[ "$log_level_val" == "(clear)" ]] && log_level_val=""
+                ;;
+            *"Done"*)
+                [[ -n "$quantize_val" ]] && CMD_ARGS+=("--quantize" "$quantize_val")
+                [[ -n "$lora_paths_val" ]] && CMD_ARGS+=("--lora-paths" "$lora_paths_val")
+                [[ -n "$lora_scales_val" ]] && CMD_ARGS+=("--lora-scales" "$lora_scales_val")
+                [[ -n "$port_val" ]] && CMD_ARGS+=("--port" "$port_val")
+                [[ -n "$host_val" ]] && CMD_ARGS+=("--host" "$host_val")
+                [[ -n "$log_level_val" ]] && CMD_ARGS+=("--log-level" "$log_level_val")
+                break
+                ;;
+            *"Cancel"*|""|"─"*)
+                return 1
+                ;;
+        esac
+    done
+}
+
+# Configure options for image-edit with preset defaults (qwen-image-edit, q16)
+configure_image_edit_options_with_defaults() {
+    # Initialize option values with preset defaults
+    local config_val="qwen-image-edit"
+    local quantize_val="16"
+    local lora_paths_val=""
+    local lora_scales_val=""
+    local port_val="8000"
+    local host_val="0.0.0.0"
+    local log_level_val=""
+    
+    # Interactive settings loop
+    while true; do
+        local menu="Config name: $config_val
+Quantize level: $quantize_val
+LoRA paths: ${lora_paths_val:-(not set)}
+LoRA scales: ${lora_scales_val:-(not set)}
+Port: $port_val
+Host: $host_val
+Log level: ${log_level_val:-INFO (default)}
+──────────
+✅ Done - continue to launch
+✖ Cancel"
+        
+        local selection=$(echo "$menu" | gum choose --height 15 \
+            --header "Configure image-edit options - Select to edit")
+        
+        case "$selection" in
+            "Config name:"*)
+                config_val=$(gum choose --header "Select config-name" \
+                    "flux-kontext-dev" "qwen-image-edit")
+                [[ -z "$config_val" ]] && config_val="qwen-image-edit"
+                ;;
+            "Quantize level:"*)
+                quantize_val=$(gum choose --header "Quantize level" "4" "8" "16")
+                [[ -z "$quantize_val" ]] && quantize_val="16"
+                ;;
+            "LoRA paths:"*)
+                lora_paths_val=$(gum input --placeholder "/path/to/lora1.safetensors" --header "LoRA paths (comma-separated)" --value "$lora_paths_val")
+                if [[ -n "$lora_paths_val" ]]; then
+                    lora_scales_val=$(gum input --placeholder "0.8,0.6" --header "LoRA scales (must match paths count)" --value "$lora_scales_val")
+                fi
+                ;;
+            "LoRA scales:"*)
+                lora_scales_val=$(gum input --placeholder "0.8,0.6" --header "LoRA scales" --value "$lora_scales_val")
+                ;;
+            "Port:"*)
+                port_val=$(gum input --placeholder "8000" --header "Server port" --value "$port_val")
+                [[ -z "$port_val" ]] && port_val="8000"
+                ;;
+            "Host:"*)
+                host_val=$(gum input --placeholder "0.0.0.0" --header "Server host" --value "$host_val")
+                [[ -z "$host_val" ]] && host_val="0.0.0.0"
+                ;;
+            "Log level:"*)
+                log_level_val=$(gum choose --header "Log level" "DEBUG" "INFO" "WARNING" "ERROR" "CRITICAL" "(clear)")
+                [[ "$log_level_val" == "(clear)" ]] && log_level_val=""
+                ;;
+            *"Done"*)
+                # Rebuild CMD_ARGS with configured values
+                local model_path=$(echo "${CMD_ARGS[@]}" | grep -o "\-\-model-path [^ ]*" | cut -d' ' -f2)
+                CMD_ARGS=("--model-path" "$model_path" "--model-type" "image-edit")
+                CMD_ARGS+=("--config-name" "$config_val")
+                CMD_ARGS+=("--quantize" "$quantize_val")
+                [[ -n "$lora_paths_val" ]] && CMD_ARGS+=("--lora-paths" "$lora_paths_val")
+                [[ -n "$lora_scales_val" ]] && CMD_ARGS+=("--lora-scales" "$lora_scales_val")
+                CMD_ARGS+=("--port" "$port_val")
+                CMD_ARGS+=("--host" "$host_val")
+                [[ -n "$log_level_val" ]] && CMD_ARGS+=("--log-level" "$log_level_val")
+                break
+                ;;
+            *"Cancel"*|""|"─"*)
+                return 1
+                ;;
+        esac
+    done
+}
+
+# Configure options for whisper models
+configure_whisper_options() {
+    # Initialize option values
+    local max_concurrency_val=""
+    local queue_timeout_val=""
+    local queue_size_val=""
+    local port_val=""
+    local host_val=""
+    local log_level_val=""
+    
+    # Interactive settings loop
+    while true; do
+        local menu="Max concurrency: ${max_concurrency_val:-1 (default)}
+Queue timeout: ${queue_timeout_val:-600 (default)}
+Queue size: ${queue_size_val:-50 (default)}
+Port: ${port_val:-8000 (default)}
+Host: ${host_val:-0.0.0.0 (default)}
+Log level: ${log_level_val:-INFO (default)}
+──────────
+✅ Done - continue to launch
+✖ Cancel"
+        
+        local selection=$(echo "$menu" | gum choose --height 15 \
+            --header "Configure whisper options - Select to edit")
+        
+        case "$selection" in
+            "Max concurrency:"*)
+                max_concurrency_val=$(gum input --placeholder "1" --header "Max concurrency" --value "$max_concurrency_val")
+                ;;
+            "Queue timeout:"*)
+                queue_timeout_val=$(gum input --placeholder "600" --header "Queue timeout (seconds)" --value "$queue_timeout_val")
+                ;;
+            "Queue size:"*)
+                queue_size_val=$(gum input --placeholder "50" --header "Queue size" --value "$queue_size_val")
+                ;;
+            "Port:"*)
+                port_val=$(gum input --placeholder "8000" --header "Server port" --value "$port_val")
+                ;;
+            "Host:"*)
+                host_val=$(gum input --placeholder "0.0.0.0" --header "Server host" --value "$host_val")
+                ;;
+            "Log level:"*)
+                log_level_val=$(gum choose --header "Log level" "DEBUG" "INFO" "WARNING" "ERROR" "CRITICAL" "(clear)")
+                [[ "$log_level_val" == "(clear)" ]] && log_level_val=""
+                ;;
+            *"Done"*)
+                [[ -n "$max_concurrency_val" ]] && CMD_ARGS+=("--max-concurrency" "$max_concurrency_val")
+                [[ -n "$queue_timeout_val" ]] && CMD_ARGS+=("--queue-timeout" "$queue_timeout_val")
+                [[ -n "$queue_size_val" ]] && CMD_ARGS+=("--queue-size" "$queue_size_val")
+                [[ -n "$port_val" ]] && CMD_ARGS+=("--port" "$port_val")
+                [[ -n "$host_val" ]] && CMD_ARGS+=("--host" "$host_val")
+                [[ -n "$log_level_val" ]] && CMD_ARGS+=("--log-level" "$log_level_val")
+                break
+                ;;
+            *"Cancel"*|""|"─"*)
+                return 1
+                ;;
+        esac
+    done
+}
+
+# Configure common server options
+configure_server_options() {
+    # Initialize option values
+    local port_val=""
+    local host_val=""
+    local log_level_val=""
+    local max_concurrency_val=""
+    local queue_timeout_val=""
+    local queue_size_val=""
+    
+    # Interactive settings loop
+    while true; do
+        local menu="Port: ${port_val:-8000 (default)}
+Host: ${host_val:-0.0.0.0 (default)}
+Log level: ${log_level_val:-INFO (default)}
+Max concurrency: ${max_concurrency_val:-1 (default)}
+Queue timeout: ${queue_timeout_val:-300 (default)}
+Queue size: ${queue_size_val:-100 (default)}
+──────────
+✅ Done - continue to launch
+✖ Cancel"
+        
+        local selection=$(echo "$menu" | gum choose --height 15 \
+            --header "Configure server options - Select to edit")
+        
+        case "$selection" in
+            "Port:"*)
+                port_val=$(gum input --placeholder "8000" --header "Server port" --value "$port_val")
+                ;;
+            "Host:"*)
+                host_val=$(gum input --placeholder "0.0.0.0" --header "Server host" --value "$host_val")
+                ;;
+            "Log level:"*)
+                log_level_val=$(gum choose --header "Log level" "DEBUG" "INFO" "WARNING" "ERROR" "CRITICAL" "(clear)")
+                [[ "$log_level_val" == "(clear)" ]] && log_level_val=""
+                ;;
+            "Max concurrency:"*)
+                max_concurrency_val=$(gum input --placeholder "1" --header "Max concurrency" --value "$max_concurrency_val")
+                ;;
+            "Queue timeout:"*)
+                queue_timeout_val=$(gum input --placeholder "300" --header "Queue timeout (seconds)" --value "$queue_timeout_val")
+                ;;
+            "Queue size:"*)
+                queue_size_val=$(gum input --placeholder "100" --header "Queue size" --value "$queue_size_val")
+                ;;
+            *"Done"*)
+                [[ -n "$port_val" ]] && CMD_ARGS+=("--port" "$port_val")
+                [[ -n "$host_val" ]] && CMD_ARGS+=("--host" "$host_val")
+                [[ -n "$log_level_val" ]] && CMD_ARGS+=("--log-level" "$log_level_val")
+                [[ -n "$max_concurrency_val" ]] && CMD_ARGS+=("--max-concurrency" "$max_concurrency_val")
+                [[ -n "$queue_timeout_val" ]] && CMD_ARGS+=("--queue-timeout" "$queue_timeout_val")
+                [[ -n "$queue_size_val" ]] && CMD_ARGS+=("--queue-size" "$queue_size_val")
+                break
+                ;;
+            *"Cancel"*|""|"─"*)
+                return 1
+                ;;
+        esac
+    done
 }
 
 # Function to list available models
@@ -295,10 +1045,44 @@ while true; do
                 echo "No LLMs installed yet."
                 gum confirm "Press Enter to continue..."
             else
-                model_to_run=$(gum choose --header "Select an LLM to run" "${installed_models[@]}")
-                if [[ -n "$model_to_run" ]]; then
-                    run_model "$model_to_run"
-                fi
+                # Model selection loop
+                while true; do
+                    model_to_run=$(gum choose --header "Select an LLM to run" "${installed_models[@]}" "✖ Back")
+                    
+                    if [[ -z "$model_to_run" || "$model_to_run" == "✖ Back" ]]; then
+                        break
+                    fi
+                    
+                    # Run mode selection loop - show preset configurations
+                    while true; do
+                        preset=$(gum choose \
+                            --header "$model_to_run - Select configuration" \
+                            "lm (text-only)" \
+                            "multimodal (vision, audio)" \
+                            "image-generation (qwen-image, q16)" \
+                            "image-edit (qwen-image-edit, q16)" \
+                            "embeddings" \
+                            "whisper (audio transcription)" \
+                            "✖ Back")
+                        
+                        # Extract preset type
+                        case "$preset" in
+                            "lm (text-only)") preset_type="lm" ;;
+                            "multimodal (vision, audio)") preset_type="multimodal" ;;
+                            "image-generation"*) preset_type="image-generation" ;;
+                            "image-edit"*) preset_type="image-edit" ;;
+                            "embeddings") preset_type="embeddings" ;;
+                            "whisper"*) preset_type="whisper" ;;
+                            *) break ;;  # Back or cancel
+                        esac
+                        
+                        # Handle preset action
+                        if handle_preset_action "$model_to_run" "$preset_type"; then
+                            break 2  # Exit both loops after successful run
+                        fi
+                        # If cancelled, stay in preset selection
+                    done
+                done
             fi
             ;;
             
