@@ -314,94 +314,126 @@ while true; do
                 continue
             fi
             
-            # Pagination for model selection
-            page=1
-            search_term=""
-            
+            # Browse mode loop - allows returning to this menu from model list
             while true; do
-                # Calculate offset for display
-                offset=$(( (page - 1) * 100 ))
-                echo "Fetching models (page $page, offset $offset)..."
+                # Choose browse mode: search or show all
+                browse_mode=$(gum choose \
+                    --header "$model_source" \
+                    "🔍 Search a model..." \
+                    "📋 Show all models..." \
+                    "✖ Back")
                 
-                # Get available models from API
-                available_models=$(get_available_models "$model_source" "$page" "$search_term")
+                if [[ -z "$browse_mode" || "$browse_mode" == "✖ Back" ]]; then
+                    break
+                fi
                 
-                if [[ -z "$available_models" ]]; then
-                    if [[ $page -eq 1 ]]; then
-                        echo "No models found matching your criteria."
-                        gum confirm "Press Enter to continue..."
-                        break
-                    else
-                        echo "No more models."
-                        ((page--))
+                # Pagination for model selection
+                page=1
+                search_term=""
+                
+                # Handle search option
+                if [[ "$browse_mode" == "🔍 Search a model..." ]]; then
+                    search_term=$(gum input \
+                        --placeholder "Enter model name (e.g., llama, qwen, mistral)..." \
+                        --header "Search in $model_source" \
+                        --width 60)
+                    
+                    # If user cancelled or empty input, go back to browse mode menu
+                    if [[ -z "$search_term" ]]; then
                         continue
                     fi
                 fi
                 
-                # Count models
-                model_count=$(echo "$available_models" | wc -l | tr -d ' ')
-                
-                # Build menu: models first, then navigation at bottom
-                menu_items="${available_models}\n---"
-                
-                # Add search option
-                if [[ -n "$search_term" ]]; then
-                    menu_items="${menu_items}\n🔍 Search: \"$search_term\" [change]"
-                else
-                    menu_items="${menu_items}\n🔍 Search API..."
-                fi
-                
-                # Add pagination
-                if [[ $page -gt 1 ]]; then
-                    menu_items="${menu_items}\n◀ Previous Page"
-                fi
-                if [[ $model_count -ge 100 ]]; then
-                    menu_items="${menu_items}\n▶ Next Page"
-                fi
-                menu_items="${menu_items}\n✖ Back"
-                
-                # Create header with info
-                header_text="Page $page | $model_source | $model_count models"
-                if [[ -n "$search_term" ]]; then
-                    header_text="$header_text | Search: $search_term"
-                fi
-                
-                selection=$(echo -e "$menu_items" | gum choose --height 30 --header "$header_text")
-                
-                case "$selection" in
-                    "🔍 Search"*)
-                        search_term=$(gum input \
-                            --placeholder "Search models (e.g., llama, qwen, mistral)..." \
-                            --header "Search HuggingFace API" \
-                            --value "$search_term" \
-                            --width 60)
-                        page=1  # Reset to page 1 with new search
-                        ;;
-                    "◀ Previous Page")
-                        ((page--))
-                        ;;
-                    "▶ Next Page")
-                        ((page++))
-                        ;;
-                    "✖ Back"|""|"---")
-                        break
-                        ;;
-                    *)
-                        # User selected a model - show details first
-                        repo_id="$selection"
-                        model_name=$(basename "$repo_id")
-                        
-                        if show_model_details "$repo_id"; then
-                            if download_model "$repo_id" "$model_name"; then
-                                gum confirm "LLM installed successfully! Press Enter to continue..."
-                            else
-                                gum confirm "Installation failed. Press Enter to continue..."
-                            fi
+                while true; do
+                    # Calculate offset for display
+                    offset=$(( (page - 1) * 100 ))
+                    
+                    if [[ -n "$search_term" ]]; then
+                        echo "Searching '$search_term' in $model_source (page $page)..."
+                    else
+                        echo "Fetching $model_source models (page $page)..."
+                    fi
+                    
+                    # Get available models from API
+                    available_models=$(get_available_models "$model_source" "$page" "$search_term")
+                    
+                    if [[ -z "$available_models" ]]; then
+                        if [[ $page -eq 1 ]]; then
+                            echo "No models found matching your criteria."
+                            gum confirm "Press Enter to continue..."
                             break
+                        else
+                            echo "No more models."
+                            ((page--))
+                            continue
                         fi
-                        # If cancelled, stay in the model list
-                        ;;
-                esac
+                    fi
+                    
+                    # Count models
+                    model_count=$(echo "$available_models" | wc -l | tr -d ' ')
+                    
+                    # Build menu: models first, then navigation at bottom
+                    menu_items="${available_models}\n---"
+                    
+                    # Add search option
+                    if [[ -n "$search_term" ]]; then
+                        menu_items="${menu_items}\n🔍 Search: \"$search_term\" [change]"
+                    else
+                        menu_items="${menu_items}\n🔍 Search API..."
+                    fi
+                    
+                    # Add pagination
+                    if [[ $page -gt 1 ]]; then
+                        menu_items="${menu_items}\n◀ Previous Page"
+                    fi
+                    if [[ $model_count -ge 100 ]]; then
+                        menu_items="${menu_items}\n▶ Next Page"
+                    fi
+                    menu_items="${menu_items}\n✖ Back"
+                    
+                    # Create header with info
+                    header_text="Page $page | $model_source | $model_count models"
+                    if [[ -n "$search_term" ]]; then
+                        header_text="$header_text | Search: $search_term"
+                    fi
+                    
+                    selection=$(echo -e "$menu_items" | gum choose --height 30 --header "$header_text")
+                    
+                    case "$selection" in
+                        "🔍 Search"*)
+                            search_term=$(gum input \
+                                --placeholder "Search models (e.g., llama, qwen, mistral)..." \
+                                --header "Search HuggingFace API" \
+                                --value "$search_term" \
+                                --width 60)
+                            page=1  # Reset to page 1 with new search
+                            ;;
+                        "◀ Previous Page")
+                            ((page--))
+                            ;;
+                        "▶ Next Page")
+                            ((page++))
+                            ;;
+                        "✖ Back"|""|"---")
+                            break
+                            ;;
+                        *)
+                            # User selected a model - show details first
+                            repo_id="$selection"
+                            model_name=$(basename "$repo_id")
+                            
+                            if show_model_details "$repo_id"; then
+                                if download_model "$repo_id" "$model_name"; then
+                                    gum confirm "LLM installed successfully! Press Enter to continue..."
+                                else
+                                    gum confirm "Installation failed. Press Enter to continue..."
+                                fi
+                                break
+                            fi
+                            # If cancelled, stay in the model list
+                            ;;
+                    esac
+                done
             done
             ;;
             
