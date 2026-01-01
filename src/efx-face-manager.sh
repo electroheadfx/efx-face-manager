@@ -31,7 +31,8 @@ show_header() {
 ├┤ ├┤ ┌┴┬┘───├┤ ├─┤│  ├┤ 
 └─┘└  ┴ └─   └  ┴ ┴└─┘└─┘' \
         '' \
-        'MLX Hugging Face Manager'
+        'MLX Hugging Face Manager' \
+        'by Efx 2026'
 }
 
 # Handle version flag
