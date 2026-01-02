@@ -9,7 +9,7 @@ MLX Hugging Face Manager
 by Laurent Marques
 ```
 
-**Version: 0.1.0**
+**Version: 0.1.1**
 
 A terminal-based LLM model manager for Apple Silicon Macs. Browse, install, and run MLX-optimized models from Hugging Face with an intuitive TUI interface.
 
@@ -29,6 +29,13 @@ A terminal-based LLM model manager for Apple Silicon Macs. Browse, install, and 
 - **Run Models** - Launch models with MLX OpenAI Server
 - **Uninstall** - Clean removal of models and cache
 - **Multiple Sources** - Browse mlx-community, lmstudio-community, or all models
+- **Multi-Path Storage (v0.1.1)** - Flexible model storage with automatic fallback:
+  - **External Path**: `/Volumes/T7/mlx-server` (when drive is mounted)
+  - **Local Path**: `~/mlx-server` (fallback when external is unavailable)
+  - **Legacy Path**: `/Volumes/T7/Téléchargements/ollama/mlx-server` (backward compatibility)
+  - Auto-detection with External → Local fallback
+  - Path persistence across sessions via `~/.efx-face-manager.conf`
+  - Real-time status display (models count, availability)
 
 ### Advanced Configuration (v0.1.0)
 - **🎯 Preset Configurations** - Quick-launch with 6 model type presets:
@@ -111,12 +118,42 @@ export PATH="$PATH:/path/to/efx-face-manager"
 
 ## Configuration
 
-Set the model directory in your shell config (`.zshrc` or `.bashrc`):
+### Model Storage Path
 
+The application automatically manages model storage paths with smart defaults:
+
+**Default Behavior:**
+- First launch: Auto-detects External (`/Volumes/T7/mlx-server`) if drive mounted, else Local (`~/mlx-server`)
+- Subsequent launches: Uses saved preference from `~/.efx-face-manager.conf`
+
+**Manual Configuration:**
+Use the **Configure Model Storage Path** menu option to:
+- Switch between External, Local, or Legacy paths
+- View real-time status and model counts
+- Enable auto-detection for automatic fallback
+
+**Available Paths:**
 ```bash
-# Default location for downloaded models
-export MODEL_DIR="/path/to/your/models"
+# External (recommended for large collections)
+/Volumes/T7/mlx-server
+
+# Local (always available)
+~/mlx-server
+
+# Legacy (backward compatibility)
+/Volumes/T7/Téléchargements/ollama/mlx-server
 ```
+
+### Environment Variables (Optional)
+
+You can override the path temporarily:
+```bash
+# Override for single session
+export MODEL_DIR="/custom/path"
+./efx-face-manager.sh
+```
+
+> **Note:** Manual `MODEL_DIR` exports override the saved configuration. Use the in-app menu for persistent changes.
 
 ## Usage
 
@@ -139,7 +176,32 @@ export MODEL_DIR="/path/to/your/models"
 | **Run an Installed LLM** | Select and launch a model with preset configurations or custom settings |
 | **Install a New Hugging Face LLM** | Browse and download models from Hugging Face |
 | **Uninstall an LLM** | Remove installed models and clean cache |
+| **Configure Model Storage Path** | Switch between External, Local, or Legacy storage paths |
 | **Exit** | Quit the application |
+
+### Model Storage Configuration (v0.1.1)
+
+#### Path Selection
+1. Select **Configure Model Storage Path** from main menu
+2. View current path and available options:
+   - **External**: `/Volumes/T7/mlx-server` - Best for large collections, shows mount status
+   - **Local**: `~/mlx-server` - Always available, stored on internal drive
+   - **Legacy**: `/Volumes/T7/Téléchargements/ollama/mlx-server` - Backward compatibility
+3. Each path shows:
+   - ✓ Active (X models) - Path is active with models
+   - ✓ Available (no models) - Path exists but empty
+   - ✗ External drive not mounted - Drive unavailable
+   - ○ Not created - Path doesn't exist yet
+4. Select a path to switch (creates directory if needed)
+5. Use **Auto-detect** for automatic External → Local fallback
+
+#### How It Works
+- **First Launch**: Auto-detects External if `/Volumes/T7` is mounted, otherwise uses Local
+- **Persistence**: Selected path saved to `~/.efx-face-manager.conf`
+- **Subsequent Launches**: Loads saved path preference
+- **Path Switching**: All operations (install/run/list) immediately use new path
+- **Independence**: Each path maintains its own model collection
+- **Backward Compatible**: Legacy path still accessible for existing models
 
 ### Running Models (v0.1.0)
 
@@ -187,7 +249,7 @@ When you select **Modify config...**:
 ### Model Storage Structure
 
 ```
-$MODEL_DIR/
+$MODEL_DIR/                        # Selected path (External/Local/Legacy)
 ├── cache/                         # Downloaded model files
 │   └── models--org--ModelName/
 │       └── snapshots/
@@ -195,6 +257,11 @@ $MODEL_DIR/
 ├── ModelName -> cache/.../        # Symlink to model
 └── AnotherModel -> cache/.../     # Clean root with symlinks
 ```
+
+**Multiple Paths:**
+- Each path (`External`, `Local`, `Legacy`) maintains independent model collections
+- Switching paths shows only models in that location
+- Models don't move when switching - they stay in their original path
 
 ## Keyboard Shortcuts
 

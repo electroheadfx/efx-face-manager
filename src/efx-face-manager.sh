@@ -7,7 +7,7 @@
 # Uses gum for interactive selection
 # https://github.com/charmbracelet/gum
 
-VERSION="0.1.0"
+VERSION="0.1.1"
 
 clear
 
@@ -40,8 +40,143 @@ if [[ "$1" == "--version" || "$1" == "-v" ]]; then
     show_version
 fi
 
-# Configuration - Set MODEL_DIR in your .zshrc or here
-export MODEL_DIR="${MODEL_DIR:-/Volumes/T7/Téléchargements/ollama/mlx-server}"
+# Define available model storage paths
+EXTERNAL_MODEL_PATH="/Volumes/T7/mlx-server"
+LOCAL_MODEL_PATH="$HOME/mlx-server"
+LEGACY_MODEL_PATH="/Volumes/T7/Téléchargements/ollama/mlx-server"
+
+# Configuration file for storing selected path
+CONFIG_FILE="$HOME/.efx-face-manager.conf"
+
+# Function to detect and set default MODEL_DIR
+detect_default_path() {
+    # Check if external drive is mounted
+    if [[ -d "/Volumes/T7" ]]; then
+        echo "$EXTERNAL_MODEL_PATH"
+    else
+        echo "$LOCAL_MODEL_PATH"
+    fi
+}
+
+# Function to load saved path from config
+load_model_path() {
+    if [[ -f "$CONFIG_FILE" ]]; then
+        local saved_path=$(cat "$CONFIG_FILE")
+        # Validate saved path exists or is creatable
+        if [[ -n "$saved_path" ]]; then
+            echo "$saved_path"
+            return
+        fi
+    fi
+    # No saved config, use auto-detection
+    detect_default_path
+}
+
+# Function to save selected path to config
+save_model_path() {
+    local path="$1"
+    echo "$path" > "$CONFIG_FILE"
+}
+
+# Function to get path status and description
+get_path_status() {
+    local path="$1"
+    local model_count=0
+    
+    if [[ -d "$path" ]]; then
+        model_count=$(find "$path" -maxdepth 1 -type l 2>/dev/null | wc -l | tr -d ' ')
+        if [[ $model_count -gt 0 ]]; then
+            echo "✓ Active ($model_count models)"
+        else
+            echo "✓ Available (no models)"
+        fi
+    elif [[ "$path" == "$EXTERNAL_MODEL_PATH" ]]; then
+        echo "✗ External drive not mounted"
+    else
+        echo "○ Not created"
+    fi
+}
+
+# Function to show and select model storage path
+configure_model_path() {
+    while true; do
+        local external_status=$(get_path_status "$EXTERNAL_MODEL_PATH")
+        local local_status=$(get_path_status "$LOCAL_MODEL_PATH")
+        local legacy_status=$(get_path_status "$LEGACY_MODEL_PATH")
+        
+        local current_marker=""
+        [[ "$MODEL_DIR" == "$EXTERNAL_MODEL_PATH" ]] && current_marker=" ← Current"
+        local external_line="External: $EXTERNAL_MODEL_PATH [$external_status]$current_marker"
+        
+        current_marker=""
+        [[ "$MODEL_DIR" == "$LOCAL_MODEL_PATH" ]] && current_marker=" ← Current"
+        local local_line="Local: $LOCAL_MODEL_PATH [$local_status]$current_marker"
+        
+        current_marker=""
+        [[ "$MODEL_DIR" == "$LEGACY_MODEL_PATH" ]] && current_marker=" ← Current"
+        local legacy_line="Legacy: $LEGACY_MODEL_PATH [$legacy_status]$current_marker"
+        
+        local menu="Current Path: $MODEL_DIR
+──────────
+$external_line
+$local_line
+$legacy_line
+──────────
+✅ Select path
+🔄 Auto-detect (External → Local fallback)
+✖ Back"
+        
+        local selection=$(echo "$menu" | gum choose --height 15 \
+            --header "Configure Model Storage Path")
+        
+        case "$selection" in
+            "External:"*)
+                if [[ -d "/Volumes/T7" ]]; then
+                    MODEL_DIR="$EXTERNAL_MODEL_PATH"
+                    mkdir -p "$MODEL_DIR"
+                    save_model_path "$MODEL_DIR"
+                    gum style --foreground 212 "✓ Switched to External path: $MODEL_DIR"
+                    sleep 1
+                else
+                    gum style --foreground 196 "✗ External drive not mounted at /Volumes/T7"
+                    sleep 2
+                fi
+                ;;
+            "Local:"*)
+                MODEL_DIR="$LOCAL_MODEL_PATH"
+                mkdir -p "$MODEL_DIR"
+                save_model_path "$MODEL_DIR"
+                gum style --foreground 212 "✓ Switched to Local path: $MODEL_DIR"
+                sleep 1
+                ;;
+            "Legacy:"*)
+                if [[ -d "$LEGACY_MODEL_PATH" ]] || [[ -d "/Volumes/T7" ]]; then
+                    MODEL_DIR="$LEGACY_MODEL_PATH"
+                    mkdir -p "$MODEL_DIR"
+                    save_model_path "$MODEL_DIR"
+                    gum style --foreground 212 "✓ Switched to Legacy path: $MODEL_DIR"
+                    sleep 1
+                else
+                    gum style --foreground 196 "✗ Legacy path requires external drive at /Volumes/T7"
+                    sleep 2
+                fi
+                ;;
+            *"Auto-detect"*)
+                MODEL_DIR=$(detect_default_path)
+                mkdir -p "$MODEL_DIR"
+                save_model_path "$MODEL_DIR"
+                gum style --foreground 212 "✓ Auto-detected path: $MODEL_DIR"
+                sleep 1
+                ;;
+            *"Back"*|"")
+                return
+                ;;
+        esac
+    done
+}
+
+# Initialize MODEL_DIR - Load from config or auto-detect
+export MODEL_DIR=$(load_model_path)
 
 # Ensure directory exists
 mkdir -p "$MODEL_DIR"
@@ -1027,6 +1162,7 @@ while true; do
         "Run an Installed LLM" \
         "Install a New Hugging Face LLM" \
         "Uninstall an LLM" \
+        "Configure Model Storage Path" \
         "Exit")
     
     # Handle ESC (empty selection)
@@ -1237,6 +1373,10 @@ while true; do
                     remove_model "$model_to_remove"
                 fi
             fi
+            ;;
+            
+        "Configure Model Storage Path")
+            configure_model_path
             ;;
             
         "Exit")
