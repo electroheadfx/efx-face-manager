@@ -43,7 +43,6 @@ fi
 # Define available model storage paths
 EXTERNAL_MODEL_PATH="/Volumes/T7/mlx-server"
 LOCAL_MODEL_PATH="$HOME/mlx-server"
-LEGACY_MODEL_PATH="/Volumes/T7/Téléchargements/ollama/mlx-server"
 
 # Configuration file for storing selected path
 CONFIG_FILE="$HOME/.efx-face-manager.conf"
@@ -99,80 +98,57 @@ get_path_status() {
 
 # Function to show and select model storage path
 configure_model_path() {
-    while true; do
-        local external_status=$(get_path_status "$EXTERNAL_MODEL_PATH")
-        local local_status=$(get_path_status "$LOCAL_MODEL_PATH")
-        local legacy_status=$(get_path_status "$LEGACY_MODEL_PATH")
-        
-        local current_marker=""
-        [[ "$MODEL_DIR" == "$EXTERNAL_MODEL_PATH" ]] && current_marker=" ← Current"
-        local external_line="External: $EXTERNAL_MODEL_PATH [$external_status]$current_marker"
-        
-        current_marker=""
-        [[ "$MODEL_DIR" == "$LOCAL_MODEL_PATH" ]] && current_marker=" ← Current"
-        local local_line="Local: $LOCAL_MODEL_PATH [$local_status]$current_marker"
-        
-        current_marker=""
-        [[ "$MODEL_DIR" == "$LEGACY_MODEL_PATH" ]] && current_marker=" ← Current"
-        local legacy_line="Legacy: $LEGACY_MODEL_PATH [$legacy_status]$current_marker"
-        
-        local menu="Current Path: $MODEL_DIR
-──────────
-$external_line
-$local_line
-$legacy_line
-──────────
-✅ Select path
-🔄 Auto-detect (External → Local fallback)
-✖ Back"
-        
-        local selection=$(echo "$menu" | gum choose --height 15 \
-            --header "Configure Model Storage Path")
-        
-        case "$selection" in
-            "External:"*)
-                if [[ -d "/Volumes/T7" ]]; then
-                    MODEL_DIR="$EXTERNAL_MODEL_PATH"
-                    mkdir -p "$MODEL_DIR"
-                    save_model_path "$MODEL_DIR"
-                    gum style --foreground 212 "✓ Switched to External path: $MODEL_DIR"
-                    sleep 1
-                else
-                    gum style --foreground 196 "✗ External drive not mounted at /Volumes/T7"
-                    sleep 2
-                fi
-                ;;
-            "Local:"*)
-                MODEL_DIR="$LOCAL_MODEL_PATH"
+    local external_status=$(get_path_status "$EXTERNAL_MODEL_PATH")
+    local local_status=$(get_path_status "$LOCAL_MODEL_PATH")
+    
+    # Build menu items with current marker
+    local external_marker=""
+    [[ "$MODEL_DIR" == "$EXTERNAL_MODEL_PATH" ]] && external_marker=" ← Current"
+    local external_line="External: $EXTERNAL_MODEL_PATH [$external_status]$external_marker"
+    
+    local local_marker=""
+    [[ "$MODEL_DIR" == "$LOCAL_MODEL_PATH" ]] && local_marker=" ← Current"
+    local local_line="Local: $LOCAL_MODEL_PATH [$local_status]$local_marker"
+    
+    local selection=$(gum choose \
+        --header "Configure Model Storage Path" \
+        "$external_line" \
+        "$local_line" \
+        "Auto-detect (External → Local fallback)" \
+        "✖ Back")
+    
+    case "$selection" in
+        "External:"*)
+            if [[ -d "/Volumes/T7" ]]; then
+                MODEL_DIR="$EXTERNAL_MODEL_PATH"
                 mkdir -p "$MODEL_DIR"
                 save_model_path "$MODEL_DIR"
-                gum style --foreground 212 "✓ Switched to Local path: $MODEL_DIR"
+                gum style --foreground 212 "✓ Switched to External path: $MODEL_DIR"
                 sleep 1
-                ;;
-            "Legacy:"*)
-                if [[ -d "$LEGACY_MODEL_PATH" ]] || [[ -d "/Volumes/T7" ]]; then
-                    MODEL_DIR="$LEGACY_MODEL_PATH"
-                    mkdir -p "$MODEL_DIR"
-                    save_model_path "$MODEL_DIR"
-                    gum style --foreground 212 "✓ Switched to Legacy path: $MODEL_DIR"
-                    sleep 1
-                else
-                    gum style --foreground 196 "✗ Legacy path requires external drive at /Volumes/T7"
-                    sleep 2
-                fi
-                ;;
-            *"Auto-detect"*)
-                MODEL_DIR=$(detect_default_path)
-                mkdir -p "$MODEL_DIR"
-                save_model_path "$MODEL_DIR"
-                gum style --foreground 212 "✓ Auto-detected path: $MODEL_DIR"
-                sleep 1
-                ;;
-            *"Back"*|"")
-                return
-                ;;
-        esac
-    done
+            else
+                gum style --foreground 196 "✗ External drive not mounted at /Volumes/T7"
+                sleep 2
+                configure_model_path  # Show menu again
+            fi
+            ;;
+        "Local:"*)
+            MODEL_DIR="$LOCAL_MODEL_PATH"
+            mkdir -p "$MODEL_DIR"
+            save_model_path "$MODEL_DIR"
+            gum style --foreground 212 "✓ Switched to Local path: $MODEL_DIR"
+            sleep 1
+            ;;
+        *"Auto-detect"*)
+            MODEL_DIR=$(detect_default_path)
+            mkdir -p "$MODEL_DIR"
+            save_model_path "$MODEL_DIR"
+            gum style --foreground 212 "✓ Auto-detected path: $MODEL_DIR"
+            sleep 1
+            ;;
+        *"Back"*|"")
+            return
+            ;;
+    esac
 }
 
 # Initialize MODEL_DIR - Load from config or auto-detect

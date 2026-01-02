@@ -32,7 +32,6 @@ A terminal-based LLM model manager for Apple Silicon Macs. Browse, install, and 
 - **Multi-Path Storage (v0.1.1)** - Flexible model storage with automatic fallback:
   - **External Path**: `/Volumes/T7/mlx-server` (when drive is mounted)
   - **Local Path**: `~/mlx-server` (fallback when external is unavailable)
-  - **Legacy Path**: `/Volumes/T7/Téléchargements/ollama/mlx-server` (backward compatibility)
   - Auto-detection with External → Local fallback
   - Path persistence across sessions via `~/.efx-face-manager.conf`
   - Real-time status display (models count, availability)
@@ -139,9 +138,6 @@ Use the **Configure Model Storage Path** menu option to:
 
 # Local (always available)
 ~/mlx-server
-
-# Legacy (backward compatibility)
-/Volumes/T7/Téléchargements/ollama/mlx-server
 ```
 
 ### Environment Variables (Optional)
@@ -183,17 +179,16 @@ export MODEL_DIR="/custom/path"
 
 #### Path Selection
 1. Select **Configure Model Storage Path** from main menu
-2. View current path and available options:
-   - **External**: `/Volumes/T7/mlx-server` - Best for large collections, shows mount status
-   - **Local**: `~/mlx-server` - Always available, stored on internal drive
-   - **Legacy**: `/Volumes/T7/Téléchargements/ollama/mlx-server` - Backward compatibility
-3. Each path shows:
-   - ✓ Active (X models) - Path is active with models
+2. Choose from available options:
+   - **External**: `/Volumes/T7/mlx-server` - Best for large collections
+   - **Local**: `~/mlx-server` - Always available on internal drive
+   - **Auto-detect** - Automatic External → Local fallback based on drive availability
+3. Selection is immediate - no confirmation needed
+4. Each path shows real-time status:
+   - ✓ Active (X models) - Path has models
    - ✓ Available (no models) - Path exists but empty
    - ✗ External drive not mounted - Drive unavailable
-   - ○ Not created - Path doesn't exist yet
-4. Select a path to switch (creates directory if needed)
-5. Use **Auto-detect** for automatic External → Local fallback
+5. Current path marked with ← indicator
 
 #### How It Works
 - **First Launch**: Auto-detects External if `/Volumes/T7` is mounted, otherwise uses Local
@@ -201,7 +196,6 @@ export MODEL_DIR="/custom/path"
 - **Subsequent Launches**: Loads saved path preference
 - **Path Switching**: All operations (install/run/list) immediately use new path
 - **Independence**: Each path maintains its own model collection
-- **Backward Compatible**: Legacy path still accessible for existing models
 
 ### Running Models (v0.1.0)
 
@@ -259,7 +253,7 @@ $MODEL_DIR/                        # Selected path (External/Local/Legacy)
 ```
 
 **Multiple Paths:**
-- Each path (`External`, `Local`, `Legacy`) maintains independent model collections
+- Each path (`External`, `Local`) maintains independent model collections
 - Switching paths shows only models in that location
 - Models don't move when switching - they stay in their original path
 
