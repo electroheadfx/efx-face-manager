@@ -7,7 +7,7 @@
 # Uses gum for interactive selection
 # https://github.com/charmbracelet/gum
 
-VERSION="0.1.2"
+VERSION="0.1.3"
 
 clear
 
@@ -15,6 +15,16 @@ clear
 show_version() {
     echo "efx-face-manager v$VERSION"
     exit 0
+}
+
+# Get display-friendly model directory path
+get_model_dir_display() {
+    local dir="$MODEL_DIR"
+    if [[ "$dir" == "$HOME"* ]]; then
+        echo "~${dir#$HOME}"
+    else
+        echo "$dir"
+    fi
 }
 
 # Show ASCII header
@@ -194,6 +204,9 @@ apply_preset_config() {
 # Show command preview and confirm launch
 confirm_and_launch() {
     local full_cmd="mlx-openai-server launch ${CMD_ARGS[*]}"
+    local display_dir
+    display_dir=$(get_model_dir_display)
+    
     echo ""
     gum style \
         --border rounded \
@@ -202,11 +215,13 @@ confirm_and_launch() {
         --width 80 \
         "$(gum style --bold --foreground 212 "Command to execute:")
 
+Models: $display_dir
+
 $full_cmd"
     echo ""
     
     local confirm=$(gum choose \
-        --header "Ready to launch?" \
+        --header "Models: $display_dir | Ready to launch?" \
         "▶ Run" \
         "✖ Cancel")
     
@@ -936,6 +951,8 @@ list_models() {
 # Function to show model details and confirm installation
 show_model_details() {
     local repo_id="$1"
+    local display_dir
+    display_dir=$(get_model_dir_display)
     
     echo ""
     gum spin --spinner dot --title "Fetching details for $repo_id..." -- sleep 0.5 &
@@ -980,6 +997,8 @@ show_model_details() {
         --width 60 \
         "$(gum style --bold --foreground 212 "$repo_id")
 
+Models:       $display_dir
+
 Downloads:    $downloads
 Likes:        $likes
 Pipeline:     $pipeline
@@ -991,7 +1010,7 @@ Size:         $size_display"
     
     # Show action menu
     local action=$(gum choose \
-        --header "What would you like to do?" \
+        --header "Models: $display_dir | What would you like to do?" \
         "⬇️  Install this LLM" \
         "🔗 Open in Browser" \
         "❌ Cancel")
@@ -1004,7 +1023,7 @@ Size:         $size_display"
             open "https://huggingface.co/$repo_id" 2>/dev/null || xdg-open "https://huggingface.co/$repo_id" 2>/dev/null
             # After opening browser, ask again
             local action2=$(gum choose \
-                --header "Continue with installation?" \
+                --header "Models: $display_dir | Continue with installation?" \
                 "⬇️  Install this LLM" \
                 "❌ Cancel")
             [[ "$action2" == "⬇️  Install this LLM" ]] && return 0 || return 1
@@ -1020,6 +1039,8 @@ download_model() {
     local repo_id="$1"
     local model_name="$2"
     local cache_dir="$MODEL_DIR/cache"
+    local display_dir
+    display_dir=$(get_model_dir_display)
     
     # Validate repo_id before passing to hf
     if [[ -z "$repo_id" || "$repo_id" == *"Fetching"* || "$repo_id" == *"..."* ]]; then
@@ -1027,7 +1048,7 @@ download_model() {
         return 1
     fi
     
-    echo "Installing $repo_id..."
+    echo "Installing $repo_id into $display_dir..."
     
     # Ensure cache directory exists
     mkdir -p "$cache_dir"
@@ -1068,8 +1089,10 @@ remove_model() {
     local model_name="$1"
     local model_path="$MODEL_DIR/$model_name"
     local target=$(readlink "$model_path")
+    local display_dir
+    display_dir=$(get_model_dir_display)
     
-    if gum confirm "Are you sure you want to uninstall $model_name?"; then
+    if gum confirm "Models: $display_dir | Are you sure you want to uninstall $model_name?"; then
         # Remove symlink
         rm "$model_path"
         
@@ -1134,7 +1157,7 @@ while true; do
     
     choice=$(gum choose \
         --height 15 \
-        --header "Models: $MODEL_DIR" \
+        --header "Models: $(get_model_dir_display)" \
         "Run an Installed LLM" \
         "Install a New Hugging Face LLM" \
         "Uninstall an LLM" \
@@ -1160,7 +1183,10 @@ while true; do
             else
                 # Model selection loop
                 while true; do
-                    model_to_run=$(gum choose --header "Select an LLM to run" "${installed_models[@]}" "✖ Back")
+                    model_to_run=$(gum choose \
+                        --header "Models: $(get_model_dir_display) | Select an LLM to run" \
+                        "${installed_models[@]}" \
+                        "✖ Back")
                     
                     if [[ -z "$model_to_run" || "$model_to_run" == "✖ Back" ]]; then
                         break
@@ -1169,7 +1195,7 @@ while true; do
                     # Run mode selection loop - show preset configurations
                     while true; do
                         preset=$(gum choose \
-                            --header "$model_to_run - Select configuration" \
+                            --header "Models: $(get_model_dir_display) | $model_to_run - Select configuration" \
                             "lm (text-only)" \
                             "multimodal (vision, audio)" \
                             "image-generation (qwen-image, q16)" \
@@ -1202,7 +1228,7 @@ while true; do
         "Install a New Hugging Face LLM")
             # Get model source
             model_source=$(gum choose \
-                --header "Select Model Source" \
+                --header "Models: $(get_model_dir_display) | Select Model Source" \
                 "mlx-community" \
                 "lmstudio-community" \
                 "All Models")
@@ -1215,7 +1241,7 @@ while true; do
             while true; do
                 # Choose browse mode: search or show all
                 browse_mode=$(gum choose \
-                    --header "$model_source" \
+                    --header "Models: $(get_model_dir_display) | $model_source" \
                     "🔍 Search a model..." \
                     "📋 Show all models..." \
                     "✖ Back")
@@ -1289,7 +1315,8 @@ while true; do
                     menu_items="${menu_items}\n✖ Back"
                     
                     # Create header with info
-                    header_text="Page $page | $model_source | $model_count models"
+                    display_dir=$(get_model_dir_display)
+                    header_text="Models: $display_dir | Page $page | $model_source | $model_count models"
                     if [[ -n "$search_term" ]]; then
                         header_text="$header_text | Search: $search_term"
                     fi
@@ -1344,7 +1371,9 @@ while true; do
                 echo "No LLMs installed."
                 gum confirm "Press Enter to continue..."
             else
-                model_to_remove=$(gum choose --header "Select an LLM to uninstall" "${models_to_remove[@]}")
+                model_to_remove=$(gum choose \
+                    --header "Models: $(get_model_dir_display) | Select an LLM to uninstall" \
+                    "${models_to_remove[@]}")
                 if [[ -n "$model_to_remove" ]]; then
                     remove_model "$model_to_remove"
                 fi
