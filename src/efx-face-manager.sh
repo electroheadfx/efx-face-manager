@@ -25,14 +25,14 @@ show_header() {
         --border double \
         --align center \
         --width 50 \
-        --margin "1 2" \
+        --margin "1 2 0 2" \
         --padding "1 2" \
         '┌─┐┌─┐─┐ ┬   ┌─┐┌─┐┌─┐┌─┐
 ├┤ ├┤ ┌┴┬┘───├┤ ├─┤│  ├┤ 
 └─┘└  ┴ └─   └  ┴ ┴└─┘└─┘' \
         '' \
         'MLX Hugging Face Manager' \
-        'by Efx 2026'
+        "by Efx - ${VERSION}"
 }
 
 # Handle version flag
