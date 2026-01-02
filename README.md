@@ -9,7 +9,7 @@ MLX Hugging Face Manager
 by Laurent Marques
 ```
 
-**Version: 0.1.3**
+**Version: 0.1.4**
 
 A terminal-based LLM model manager for Apple Silicon Macs. Browse, install, and run MLX-optimized models from Hugging Face with an intuitive TUI interface.
 
@@ -84,9 +84,28 @@ brew install huggingface-cli
 ```
 
 ### 5. Install MLX OpenAI Server (for running models)
+
+**Requirements:**
+- Python 3.11 or 3.12 (Python 3.13+ is not yet supported)
+- Use pyenv to manage Python versions if needed
+
+**Installation:**
 ```bash
+# If you have Python 3.11-3.12 as default:
 pipx install mlx-openai-server
+
+# Or install latest from GitHub (recommended for all features):
+pipx reinstall mlx-openai-server --python $(pyenv prefix 3.12.8)/bin/python
+pipx install --force git+https://github.com/cubist38/mlx-openai-server.git
 ```
+
+**Verify installation:**
+```bash
+mlx-openai-server --version
+# Should show version 1.4.2 or higher for full feature support
+```
+
+> **Note:** Version 1.4.2+ is required for image-generation, image-edit, embeddings, and whisper model types.
 > See: https://github.com/cubist38/mlx-openai-server
 
 ### 6. Login to Hugging Face (optional, for private models)

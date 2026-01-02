@@ -7,7 +7,7 @@
 # Uses gum for interactive selection
 # https://github.com/charmbracelet/gum
 
-VERSION="0.1.3"
+VERSION="0.1.4"
 
 clear
 
@@ -241,25 +241,49 @@ handle_preset_action() {
     local model_path="$MODEL_DIR/$model_name"
     local preset_desc=$(get_preset_description "$preset")
     
+    # Apply preset configuration
+    apply_preset_config "$preset" "$model_path"
+    
+    # Build command preview
+    local full_cmd="mlx-openai-server launch ${CMD_ARGS[*]}"
+    local display_dir
+    display_dir=$(get_model_dir_display)
+    
+    # Show combined page with preset info and command details
     while true; do
+        echo ""
+        gum style \
+            --border rounded \
+            --border-foreground 99 \
+            --padding "1 2" \
+            --width 80 \
+            "$(gum style --bold --foreground 212 "Model: $model_name")
+$(gum style --bold --foreground 212 "Configuration: $preset_desc")
+
+Models: $display_dir
+
+$(gum style --bold --foreground 212 "Command to execute:")
+
+$full_cmd"
+        echo ""
+        
         local action=$(gum choose \
-            --header "$model_name - $preset_desc" \
+            --header "Models: $display_dir | Ready to launch?" \
             "▶ Run" \
             "⚙️  Modify config..." \
             "✖ Cancel")
         
         case "$action" in
             "▶ Run")
-                apply_preset_config "$preset" "$model_path"
-                if confirm_and_launch; then
-                    return 0  # Success, exit to main menu
-                fi
-                # If cancelled at confirmation, stay in preset action menu
+                echo "Starting MLX OpenAI Server..."
+                mlx-openai-server launch "${CMD_ARGS[@]}"
+                # Server has stopped (either completed or interrupted)
+                echo ""
+                gum style --foreground 212 "Server stopped."
+                gum confirm "Press Enter to return to main menu..."
+                return 0  # Success, exit to main menu
                 ;;
             "⚙️  Modify config...")
-                # Initialize with preset defaults
-                apply_preset_config "$preset" "$model_path"
-                
                 # Open type-specific configuration
                 local config_result=0
                 case "$preset" in
@@ -281,11 +305,13 @@ handle_preset_action() {
                 esac
                 
                 if [[ $config_result -eq 0 ]]; then
-                    if confirm_and_launch; then
-                        return 0  # Success, exit to main menu
-                    fi
+                    # Update command preview after configuration
+                    full_cmd="mlx-openai-server launch ${CMD_ARGS[*]}"
+                    # Loop back to show updated command
+                else
+                    # If cancelled, stay in preset action menu
+                    continue
                 fi
-                # If cancelled, stay in preset action menu
                 ;;
             *)
                 return 1  # Cancel, go back to preset selection
@@ -393,6 +419,10 @@ $full_cmd"
         if [[ "$confirm" == "▶ Run" ]]; then
             echo "Starting MLX OpenAI Server..."
             mlx-openai-server launch "${CMD_ARGS[@]}"
+            # Server has stopped (either completed or interrupted)
+            echo ""
+            gum style --foreground 212 "Server stopped."
+            gum confirm "Press Enter to return to main menu..."
             return 0
         else
             return 1
@@ -404,6 +434,9 @@ $full_cmd"
 configure_lm_options() {
     local model_type=$1
     
+    # Extract model path from existing CMD_ARGS
+    local model_path=$(echo "${CMD_ARGS[@]}" | grep -o "\-\-model-path [^ ]*" | cut -d' ' -f2)
+    
     # Initialize option values
     local context_length_val=""
     local auto_tool_choice=false
@@ -414,8 +447,8 @@ configure_lm_options() {
     local chat_template_file_val=""
     local debug_mode=false
     local disable_auto_resize=false
-    local port_val=""
-    local host_val=""
+    local port_val="8000"
+    local host_val="0.0.0.0"
     local log_level_val=""
     
     # Interactive settings loop
@@ -433,8 +466,8 @@ Message converter: ${message_converter_val:-(not set)}
 Trust remote code: $([[ $trust_remote_code == true ]] && echo 'enabled' || echo 'disabled')
 Chat template file: ${chat_template_file_val:-(not set)}
 Debug mode: $([[ $debug_mode == true ]] && echo 'enabled' || echo 'disabled')
-${multimodal_line}Port: ${port_val:-8000 (default)}
-Host: ${host_val:-0.0.0.0 (default)}
+${multimodal_line}Port: $port_val
+Host: $host_val
 Log level: ${log_level_val:-INFO (default)}
 ──────────
 ✅ Done - continue to launch
@@ -488,6 +521,8 @@ Log level: ${log_level_val:-INFO (default)}
                 [[ "$log_level_val" == "(clear)" ]] && log_level_val=""
                 ;;
             *"Done"*)
+                # Rebuild CMD_ARGS from scratch to avoid conflicts
+                CMD_ARGS=("--model-path" "$model_path" "--model-type" "$model_type")
                 [[ -n "$context_length_val" ]] && CMD_ARGS+=("--context-length" "$context_length_val")
                 [[ $auto_tool_choice == true ]] && CMD_ARGS+=("--enable-auto-tool-choice")
                 [[ -n "$tool_call_parser_val" ]] && CMD_ARGS+=("--tool-call-parser" "$tool_call_parser_val")
@@ -497,8 +532,8 @@ Log level: ${log_level_val:-INFO (default)}
                 [[ -n "$chat_template_file_val" ]] && CMD_ARGS+=("--chat-template-file" "$chat_template_file_val")
                 [[ $debug_mode == true ]] && CMD_ARGS+=("--debug")
                 [[ $disable_auto_resize == true ]] && CMD_ARGS+=("--disable-auto-resize")
-                [[ -n "$port_val" ]] && CMD_ARGS+=("--port" "$port_val")
-                [[ -n "$host_val" ]] && CMD_ARGS+=("--host" "$host_val")
+                CMD_ARGS+=("--port" "$port_val")
+                CMD_ARGS+=("--host" "$host_val")
                 [[ -n "$log_level_val" ]] && CMD_ARGS+=("--log-level" "$log_level_val")
                 break
                 ;;
@@ -815,21 +850,24 @@ Log level: ${log_level_val:-INFO (default)}
 
 # Configure options for whisper models
 configure_whisper_options() {
+    # Extract model path from existing CMD_ARGS
+    local model_path=$(echo "${CMD_ARGS[@]}" | grep -o "\-\-model-path [^ ]*" | cut -d' ' -f2)
+    
     # Initialize option values
-    local max_concurrency_val=""
-    local queue_timeout_val=""
-    local queue_size_val=""
-    local port_val=""
-    local host_val=""
+    local max_concurrency_val="1"
+    local queue_timeout_val="600"
+    local queue_size_val="50"
+    local port_val="8000"
+    local host_val="0.0.0.0"
     local log_level_val=""
     
     # Interactive settings loop
     while true; do
-        local menu="Max concurrency: ${max_concurrency_val:-1 (default)}
-Queue timeout: ${queue_timeout_val:-600 (default)}
-Queue size: ${queue_size_val:-50 (default)}
-Port: ${port_val:-8000 (default)}
-Host: ${host_val:-0.0.0.0 (default)}
+        local menu="Max concurrency: $max_concurrency_val
+Queue timeout: $queue_timeout_val
+Queue size: $queue_size_val
+Port: $port_val
+Host: $host_val
 Log level: ${log_level_val:-INFO (default)}
 ──────────
 ✅ Done - continue to launch
@@ -859,11 +897,13 @@ Log level: ${log_level_val:-INFO (default)}
                 [[ "$log_level_val" == "(clear)" ]] && log_level_val=""
                 ;;
             *"Done"*)
-                [[ -n "$max_concurrency_val" ]] && CMD_ARGS+=("--max-concurrency" "$max_concurrency_val")
-                [[ -n "$queue_timeout_val" ]] && CMD_ARGS+=("--queue-timeout" "$queue_timeout_val")
-                [[ -n "$queue_size_val" ]] && CMD_ARGS+=("--queue-size" "$queue_size_val")
-                [[ -n "$port_val" ]] && CMD_ARGS+=("--port" "$port_val")
-                [[ -n "$host_val" ]] && CMD_ARGS+=("--host" "$host_val")
+                # Rebuild CMD_ARGS from scratch to avoid conflicts
+                CMD_ARGS=("--model-path" "$model_path" "--model-type" "whisper")
+                CMD_ARGS+=("--max-concurrency" "$max_concurrency_val")
+                CMD_ARGS+=("--queue-timeout" "$queue_timeout_val")
+                CMD_ARGS+=("--queue-size" "$queue_size_val")
+                CMD_ARGS+=("--port" "$port_val")
+                CMD_ARGS+=("--host" "$host_val")
                 [[ -n "$log_level_val" ]] && CMD_ARGS+=("--log-level" "$log_level_val")
                 break
                 ;;
@@ -876,22 +916,25 @@ Log level: ${log_level_val:-INFO (default)}
 
 # Configure common server options
 configure_server_options() {
+    # Extract model path from existing CMD_ARGS
+    local model_path=$(echo "${CMD_ARGS[@]}" | grep -o "\-\-model-path [^ ]*" | cut -d' ' -f2)
+    
     # Initialize option values
-    local port_val=""
-    local host_val=""
+    local port_val="8000"
+    local host_val="0.0.0.0"
     local log_level_val=""
-    local max_concurrency_val=""
-    local queue_timeout_val=""
-    local queue_size_val=""
+    local max_concurrency_val="1"
+    local queue_timeout_val="300"
+    local queue_size_val="100"
     
     # Interactive settings loop
     while true; do
-        local menu="Port: ${port_val:-8000 (default)}
-Host: ${host_val:-0.0.0.0 (default)}
+        local menu="Port: $port_val
+Host: $host_val
 Log level: ${log_level_val:-INFO (default)}
-Max concurrency: ${max_concurrency_val:-1 (default)}
-Queue timeout: ${queue_timeout_val:-300 (default)}
-Queue size: ${queue_size_val:-100 (default)}
+Max concurrency: $max_concurrency_val
+Queue timeout: $queue_timeout_val
+Queue size: $queue_size_val
 ──────────
 ✅ Done - continue to launch
 ✖ Cancel"
@@ -920,12 +963,14 @@ Queue size: ${queue_size_val:-100 (default)}
                 queue_size_val=$(gum input --placeholder "100" --header "Queue size" --value "$queue_size_val")
                 ;;
             *"Done"*)
-                [[ -n "$port_val" ]] && CMD_ARGS+=("--port" "$port_val")
-                [[ -n "$host_val" ]] && CMD_ARGS+=("--host" "$host_val")
+                # Rebuild CMD_ARGS from scratch to avoid conflicts
+                CMD_ARGS=("--model-path" "$model_path" "--model-type" "embeddings")
+                CMD_ARGS+=("--port" "$port_val")
+                CMD_ARGS+=("--host" "$host_val")
                 [[ -n "$log_level_val" ]] && CMD_ARGS+=("--log-level" "$log_level_val")
-                [[ -n "$max_concurrency_val" ]] && CMD_ARGS+=("--max-concurrency" "$max_concurrency_val")
-                [[ -n "$queue_timeout_val" ]] && CMD_ARGS+=("--queue-timeout" "$queue_timeout_val")
-                [[ -n "$queue_size_val" ]] && CMD_ARGS+=("--queue-size" "$queue_size_val")
+                CMD_ARGS+=("--max-concurrency" "$max_concurrency_val")
+                CMD_ARGS+=("--queue-timeout" "$queue_timeout_val")
+                CMD_ARGS+=("--queue-size" "$queue_size_val")
                 break
                 ;;
             *"Cancel"*|""|"─"*)
