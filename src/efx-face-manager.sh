@@ -98,6 +98,7 @@ get_path_status() {
 
 # Function to show and select model storage path
 configure_model_path() {
+    clear
     local external_status=$(get_path_status "$EXTERNAL_MODEL_PATH")
     local local_status=$(get_path_status "$LOCAL_MODEL_PATH")
     
@@ -1148,6 +1149,7 @@ while true; do
     
     case $choice in
         "Run an Installed LLM")
+            clear
             # Get list of installed models
             installed_models=()
             while IFS= read -r model; do
@@ -1200,6 +1202,7 @@ while true; do
             ;;
             
         "Install a New Hugging Face LLM")
+            clear
             # Get model source
             model_source=$(gum choose \
                 --header "Select Model Source" \
@@ -1335,6 +1338,7 @@ while true; do
             ;;
             
         "Uninstall an LLM")
+            clear
             models_to_remove=()
             while IFS= read -r model; do
                 [[ -n "$model" ]] && models_to_remove+=("$(basename "$model")")
