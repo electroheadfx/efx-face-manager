@@ -7,7 +7,7 @@
 # Uses gum for interactive selection
 # https://github.com/charmbracelet/gum
 
-VERSION="0.1.5"
+VERSION="0.1.8"
 
 clear
 
@@ -240,6 +240,7 @@ handle_preset_action() {
     local preset="$2"
     local model_path="$MODEL_DIR/$model_name"
     local preset_desc=$(get_preset_description "$preset")
+    local trust_remote_code=false
     
     # Apply preset configuration
     apply_preset_config "$preset" "$model_path"
@@ -251,6 +252,26 @@ handle_preset_action() {
     
     # Show combined page with preset info and command details
     while true; do
+        # Rebuild command with trust_remote_code flag if enabled
+        if [[ $trust_remote_code == true ]]; then
+            # Check if --trust-remote-code is not already in CMD_ARGS
+            if [[ ! " ${CMD_ARGS[*]} " =~ " --trust-remote-code " ]]; then
+                CMD_ARGS+=("--trust-remote-code")
+            fi
+        else
+            # Remove --trust-remote-code if present
+            local new_args=()
+            for arg in "${CMD_ARGS[@]}"; do
+                [[ "$arg" != "--trust-remote-code" ]] && new_args+=("$arg")
+            done
+            CMD_ARGS=("${new_args[@]}")
+        fi
+        full_cmd="mlx-openai-server launch ${CMD_ARGS[*]}"
+        
+        # Clear screen before redrawing
+        clear
+        show_header
+        
         echo ""
         gum style \
             --border rounded \
@@ -267,11 +288,19 @@ $(gum style --bold --foreground 212 "Command to execute:")
 $full_cmd"
         echo ""
         
+        # Build menu based on preset type (only lm/multimodal need trust_remote_code)
+        local menu_items=()
+        if [[ "$preset" == "lm" || "$preset" == "multimodal" ]]; then
+            local trust_status="disabled"
+            [[ $trust_remote_code == true ]] && trust_status="enabled"
+            menu_items=("▶ Run" "🔐 Trust remote code: $trust_status" "⚙️  Modify config..." "✖ Cancel")
+        else
+            menu_items=("▶ Run" "⚙️  Modify config..." "✖ Cancel")
+        fi
+        
         local action=$(gum choose \
             --header "Models: $display_dir | Ready to launch?" \
-            "▶ Run" \
-            "⚙️  Modify config..." \
-            "✖ Cancel")
+            "${menu_items[@]}")
         
         case "$action" in
             "▶ Run")
@@ -282,6 +311,10 @@ $full_cmd"
                 gum style --foreground 212 "Server stopped."
                 gum confirm "Press Enter to return to main menu..."
                 return 0  # Success, exit to main menu
+                ;;
+            "🔐 Trust remote code:"*)
+                # Toggle trust_remote_code
+                [[ $trust_remote_code == true ]] && trust_remote_code=false || trust_remote_code=true
                 ;;
             "⚙️  Modify config...")
                 # Open type-specific configuration
@@ -453,6 +486,9 @@ configure_lm_options() {
     
     # Interactive settings loop
     while true; do
+        clear
+        show_header
+        
         # Build options list based on model type
         local multimodal_line=""
         [[ "$model_type" == "multimodal" ]] && multimodal_line="Disable auto resize: $([[ $disable_auto_resize == true ]] && echo 'enabled' || echo 'disabled')
@@ -463,9 +499,9 @@ Auto tool choice: $([[ $auto_tool_choice == true ]] && echo 'enabled' || echo 'd
 Tool call parser: ${tool_call_parser_val:-(not set)}
 Reasoning parser: ${reasoning_parser_val:-(not set)}
 Message converter: ${message_converter_val:-(not set)}
-Trust remote code: $([[ $trust_remote_code == true ]] && echo 'enabled' || echo 'disabled')
 Chat template file: ${chat_template_file_val:-(not set)}
 Debug mode: $([[ $debug_mode == true ]] && echo 'enabled' || echo 'disabled')
+Trust remote code: $([[ $trust_remote_code == true ]] && echo 'enabled' || echo 'disabled')
 ${multimodal_line}Port: $port_val
 Host: $host_val
 Log level: ${log_level_val:-INFO (default)}
@@ -565,6 +601,9 @@ configure_image_gen_options() {
     
     # Interactive settings loop
     while true; do
+        clear
+        show_header
+        
         local menu="Quantize level: ${quantize_val:-(not set)}
 LoRA paths: ${lora_paths_val:-(not set)}
 LoRA scales: ${lora_scales_val:-(not set)}
@@ -631,6 +670,9 @@ configure_image_gen_options_with_defaults() {
     
     # Interactive settings loop
     while true; do
+        clear
+        show_header
+        
         local menu="Config name: $config_val
 Quantize level: $quantize_val
 LoRA paths: ${lora_paths_val:-(not set)}
@@ -717,6 +759,9 @@ configure_image_edit_options() {
     
     # Interactive settings loop
     while true; do
+        clear
+        show_header
+        
         local menu="Quantize level: ${quantize_val:-(not set)}
 LoRA paths: ${lora_paths_val:-(not set)}
 LoRA scales: ${lora_scales_val:-(not set)}
@@ -783,6 +828,9 @@ configure_image_edit_options_with_defaults() {
     
     # Interactive settings loop
     while true; do
+        clear
+        show_header
+        
         local menu="Config name: $config_val
 Quantize level: $quantize_val
 LoRA paths: ${lora_paths_val:-(not set)}
@@ -863,6 +911,9 @@ configure_whisper_options() {
     
     # Interactive settings loop
     while true; do
+        clear
+        show_header
+        
         local menu="Max concurrency: $max_concurrency_val
 Queue timeout: $queue_timeout_val
 Queue size: $queue_size_val
@@ -929,6 +980,9 @@ configure_server_options() {
     
     # Interactive settings loop
     while true; do
+        clear
+        show_header
+        
         local menu="Port: $port_val
 Host: $host_val
 Log level: ${log_level_val:-INFO (default)}

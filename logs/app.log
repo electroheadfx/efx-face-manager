@@ -1,0 +1,5 @@
+2026-01-03 13:02:46 | INFO | Starting server on 0.0.0.0:8000
+2026-01-03 13:02:46 | INFO | Server configuration complete.
+2026-01-03 13:02:46 | INFO | Starting Uvicorn server...
+2026-01-03 13:02:46 | INFO | Initializing MLX handler with model path: /Volumes/T7/mlx-server/IQuest-Coder-V1-40B-Instruct-8bit
+2026-01-03 13:02:46 | ERROR | Failed to initialize MLX handler: Error loading model: Model type iquestcoder not supported.

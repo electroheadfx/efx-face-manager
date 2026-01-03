@@ -9,7 +9,7 @@ MLX Hugging Face Manager
 by Laurent Marques
 ```
 
-**Version: 0.1.5**
+**Version: 0.1.8**
 
 A terminal-based LLM model manager for Apple Silicon Macs. Browse, install, and run MLX-optimized models from Hugging Face with an intuitive TUI interface.
 
@@ -89,14 +89,15 @@ brew install huggingface-cli
 - Python 3.11 or 3.12 (Python 3.13+ is not yet supported)
 - Use pyenv to manage Python versions if needed
 
-**Installation:**
+#### Installation Method 1: Using pipx (Recommended)
+
 ```bash
-# If you have Python 3.11-3.12 as default:
+# Install mlx-openai-server
 pipx install mlx-openai-server
 
-# Or install latest from GitHub (recommended for all features):
-pipx reinstall mlx-openai-server --python $(pyenv prefix 3.12.8)/bin/python
-pipx install --force git+https://github.com/cubist38/mlx-openai-server.git
+# Update mlx-lm to latest version for newest model support (e.g., iquestcoder)
+pipx runpip mlx-openai-server uninstall mlx-lm -y
+pipx runpip mlx-openai-server install git+https://github.com/ml-explore/mlx-lm.git
 ```
 
 **Verify installation:**
@@ -107,6 +108,26 @@ mlx-openai-server --version
 
 > **Note:** Version 1.4.2+ is required for image-generation, image-edit, embeddings, and whisper model types.
 > See: https://github.com/cubist38/mlx-openai-server
+
+#### Installation Method 2: Using uv (Alternative)
+
+For bleeding-edge features or development:
+
+```bash
+# Install uv if not already installed
+brew install uv
+
+# Clone and set up mlx-openai-server
+git clone https://github.com/cubist38/mlx-openai-server.git ~/mlx-openai-server-dev
+cd ~/mlx-openai-server-dev
+uv venv --python=3.12
+source .venv/bin/activate
+uv pip install -e .
+uv pip install git+https://github.com/ml-explore/mlx-lm.git
+
+# Launch models from this environment
+mlx-openai-server launch --model-path /path/to/model --model-type lm
+```
 
 ### 6. Login to Hugging Face (optional, for private models)
 ```bash
@@ -281,6 +302,20 @@ $MODEL_DIR/                        # Selected path (External/Local/Legacy)
 - Each model now correctly links to its own cache directory
 - Re-download models if installed with v0.1.4 or earlier
 
+**Enhancement (v0.1.6):**
+- Updated documentation with dual installation methods (pipx and uv)
+- Added mlx-lm update instructions for newest model architectures
+- Added troubleshooting for unsupported model types
+
+**Enhancement (v0.1.7):**
+- Added quick "Trust remote code" toggle on preset launch screen for LM/multimodal models
+- No need to enter config menu to enable trust_remote_code for models like IQuest-Coder
+
+**Enhancement (v0.1.8):**
+- Added logo header to all configuration menus
+- Clear screen before redrawing to prevent overlapping displays
+- Cleaner UI experience when toggling options or returning from config menus
+
 ## Keyboard Shortcuts
 
 | Key | Action |
@@ -321,6 +356,38 @@ pipx install mlx-openai-server
 - Check your internet connection
 - Verify Hugging Face API is accessible
 - Try searching with a specific term
+
+### "Model type [architecture] not supported" error
+
+If you encounter an error like `Model type iquestcoder not supported`, your mlx-lm version may be outdated.
+
+**Solution:**
+```bash
+# Uninstall old mlx-lm
+pipx runpip mlx-openai-server uninstall mlx-lm -y
+
+# Install latest from GitHub
+pipx runpip mlx-openai-server install git+https://github.com/ml-explore/mlx-lm.git
+
+# Verify it worked
+grep "iquestcoder" ~/.local/pipx/venvs/mlx-openai-server/lib/python3.*/site-packages/mlx_lm/utils.py
+# Should output: "iquestcoder": "llama",
+```
+
+### "trust_remote_code" error
+
+If you see: `Please pass the argument trust_remote_code=True to allow custom code to be run`
+
+**Solution:**
+Add the `--trust-remote-code` flag when launching:
+```bash
+mlx-openai-server launch \
+  --model-path /path/to/model \
+  --model-type lm \
+  --trust-remote-code \
+  --host 0.0.0.0 \
+  --port 8000
+```
 
 ## License
 
