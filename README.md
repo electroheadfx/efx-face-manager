@@ -9,7 +9,7 @@ MLX Hugging Face Manager
 by Laurent Marques
 ```
 
-**Version: 0.1.4**
+**Version: 0.1.5**
 
 A terminal-based LLM model manager for Apple Silicon Macs. Browse, install, and run MLX-optimized models from Hugging Face with an intuitive TUI interface.
 
@@ -275,6 +275,11 @@ $MODEL_DIR/                        # Selected path (External/Local/Legacy)
 - Each path (`External`, `Local`) maintains independent model collections
 - Switching paths shows only models in that location
 - Models don't move when switching - they stay in their original path
+
+**Bug Fix (v0.1.5):**
+- Fixed symlink creation bug where all models pointed to the same cached model
+- Each model now correctly links to its own cache directory
+- Re-download models if installed with v0.1.4 or earlier
 
 ## Keyboard Shortcuts
 

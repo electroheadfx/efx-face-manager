@@ -7,7 +7,7 @@
 # Uses gum for interactive selection
 # https://github.com/charmbracelet/gum
 
-VERSION="0.1.4"
+VERSION="0.1.5"
 
 clear
 
@@ -1105,24 +1105,26 @@ download_model() {
         
         echo "Download complete!"
         
-        # Find the snapshot directory in cache
-        local snapshot_dir=$(find "$cache_dir" -name "snapshots" -type d | head -n 1)
-        if [[ -n "$snapshot_dir" ]]; then
-            local snapshot_path=$(find "$snapshot_dir" -mindepth 1 -maxdepth 1 -type d | head -n 1)
+        # Convert repo_id to cache directory format (e.g., "mlx-community/model-name" -> "models--mlx-community--model-name")
+        local cache_model_name="models--${repo_id//\//--}"
+        local model_cache_dir="$cache_dir/$cache_model_name"
+        
+        # Find the snapshot directory for THIS specific model
+        if [[ -d "$model_cache_dir/snapshots" ]]; then
+            local snapshot_path=$(find "$model_cache_dir/snapshots" -mindepth 1 -maxdepth 1 -type d | head -n 1)
             if [[ -n "$snapshot_path" ]]; then
-                # Create symlink at MODEL_DIR root pointing into cache
+                # Create symlink at MODEL_DIR root pointing to this model's snapshot
                 ln -sf "$snapshot_path" "$MODEL_DIR/$model_name"
                 echo "LLM ready: $model_name"
+                return 0
             else
-                echo "Error: No snapshot directory found"
+                echo "Error: No snapshot found in $model_cache_dir/snapshots"
                 return 1
             fi
         else
-            echo "Error: No snapshots directory found"
+            echo "Error: Snapshots directory not found at $model_cache_dir/snapshots"
             return 1
         fi
-        
-        return 0
     else
         echo "Installation failed!"
         return 1
