@@ -521,17 +521,17 @@ Log level: ${log_level_val:-INFO (default)}
                 ;;
             "Tool call parser:"*)
                 tool_call_parser_val=$(gum choose --header "Tool call parser" \
-                    "qwen3" "glm4_moe" "qwen3_moe" "qwen3_next" "qwen3_vl" "harmony" "minimax_m2" "(clear)")
+                    "qwen3" "glm4_moe" "qwen3_coder" "qwen3_moe" "qwen3_next" "qwen3_vl" "harmony" "minimax_m2" "(clear)")
                 [[ "$tool_call_parser_val" == "(clear)" ]] && tool_call_parser_val=""
                 ;;
             "Reasoning parser:"*)
                 reasoning_parser_val=$(gum choose --header "Reasoning parser" \
-                    "qwen3" "glm4_moe" "qwen3_moe" "qwen3_next" "qwen3_vl" "harmony" "minimax_m2" "(clear)")
+                    "qwen3" "glm4_moe" "qwen3_coder" "qwen3_moe" "qwen3_next" "qwen3_vl" "harmony" "minimax_m2" "(clear)")
                 [[ "$reasoning_parser_val" == "(clear)" ]] && reasoning_parser_val=""
                 ;;
             "Message converter:"*)
                 message_converter_val=$(gum choose --header "Message converter" \
-                    "glm4_moe" "minimax_m2" "nemotron3_nano" "(clear)")
+                    "glm4_moe" "minimax_m2" "nemotron3_nano" "qwen3_coder" "(clear)")
                 [[ "$message_converter_val" == "(clear)" ]] && message_converter_val=""
                 ;;
             "Trust remote code:"*)
@@ -1259,6 +1259,7 @@ while true; do
     choice=$(gum choose \
         --height 15 \
         --header "Models: $(get_model_dir_display)" \
+        "⚡ Run LM on Template" \
         "Run an Installed LLM" \
         "Install a New Hugging Face LLM" \
         "Uninstall an LLM" \
@@ -1271,6 +1272,37 @@ while true; do
     fi
     
     case $choice in
+        "⚡ Run LM on Template")
+            # Fast launch predefined template models
+            template_choice=$(gum choose \
+                --header "Select a template model to run" \
+                "Qwen3-Coder-30B-A3B-Instruct-8bit" \
+                "NVIDIA-Nemotron-3-Nano-30B-A3B-MLX-8Bit" \
+                "✖ Back")
+
+            case "$template_choice" in
+                "Qwen3-Coder-30B-A3B-Instruct-8bit")
+                    CMD_ARGS=("--model-path" "$MODEL_DIR/Qwen3-Coder-30B-A3B-Instruct-8bit")
+                    CMD_ARGS+=("--model-type" "lm")
+                    CMD_ARGS+=("--tool-call-parser" "qwen3_coder")
+                    CMD_ARGS+=("--message-converter" "qwen3_coder")
+                    CMD_ARGS+=("--port" "8000")
+                    CMD_ARGS+=("--host" "0.0.0.0")
+                    confirm_and_launch
+                    ;;
+                "NVIDIA-Nemotron-3-Nano-30B-A3B-MLX-8Bit")
+                    CMD_ARGS=("--model-path" "$MODEL_DIR/NVIDIA-Nemotron-3-Nano-30B-A3B-MLX-8Bit")
+                    CMD_ARGS+=("--model-type" "lm")
+                    CMD_ARGS+=("--tool-call-parser" "qwen3")
+                    CMD_ARGS+=("--message-converter" "nemotron3_nano")
+                    CMD_ARGS+=("--port" "8000")
+                    CMD_ARGS+=("--host" "0.0.0.0")
+                    CMD_ARGS+=("--trust-remote-code")
+                    confirm_and_launch
+                    ;;
+            esac
+            ;;
+
         "Run an Installed LLM")
             # Get list of installed models
             installed_models=()
