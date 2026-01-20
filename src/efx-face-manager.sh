@@ -1278,6 +1278,7 @@ while true; do
                 --header "Select a template model to run" \
                 "Qwen3-Coder-30B-A3B-Instruct-8bit" \
                 "NVIDIA-Nemotron-3-Nano-30B-A3B-MLX-8Bit" \
+                "GLM-4.7-Flash-8bit" \
                 "✖ Back")
 
             case "$template_choice" in
@@ -1298,6 +1299,17 @@ while true; do
                     CMD_ARGS+=("--port" "8000")
                     CMD_ARGS+=("--host" "0.0.0.0")
                     CMD_ARGS+=("--trust-remote-code")
+                    confirm_and_launch
+                    ;;
+                "GLM-4.7-Flash-8bit")
+                    CMD_ARGS=("--model-path" "$MODEL_DIR/GLM-4.7-Flash-8bit")
+                    CMD_ARGS+=("--model-type" "lm")
+                    CMD_ARGS+=("--reasoning-parser" "glm4_moe") # glm47_flash
+                    CMD_ARGS+=("--tool-call-parser" "glm4_moe")
+                    CMD_ARGS+=("--message-converter" "glm4_moe")
+                    CMD_ARGS+=("--debug")
+                    CMD_ARGS+=("--port" "8000")
+                    CMD_ARGS+=("--host" "0.0.0.0")
                     confirm_and_launch
                     ;;
             esac
