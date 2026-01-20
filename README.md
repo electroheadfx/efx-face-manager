@@ -9,7 +9,7 @@ MLX Hugging Face Manager
 by Laurent Marques
 ```
 
-**Version: 0.1.8**
+**Version: 0.1.10**
 
 A terminal-based LLM model manager for Apple Silicon Macs. Browse, install, and run MLX-optimized models from Hugging Face with an intuitive TUI interface.
 
@@ -209,11 +209,38 @@ export MODEL_DIR="/custom/path"
 
 | Option | Description |
 |--------|-------------|
+| **⚡ Run LM on Template** | Fast-launch predefined language model templates with optimized configurations |
 | **Run an Installed LLM** | Select and launch a model with preset configurations or custom settings |
 | **Install a New Hugging Face LLM** | Browse and download models from Hugging Face |
 | **Uninstall an LLM** | Remove installed models and clean cache |
 | **Configure Model Storage Path** | Switch between External, Local, or Legacy storage paths |
 | **Exit** | Quit the application |
+
+### Template Models (v0.1.10)
+
+#### Fast Launch Predefined Templates
+
+Select **⚡ Run LM on Template** from the main menu to quickly launch popular language models with optimized configurations:
+
+**Available Templates:**
+- **Qwen3-Coder-30B-A3B-Instruct-8bit** - Optimized for coding tasks
+- **NVIDIA-Nemotron-3-Nano-30B-A3B-MLX-8Bit** - General purpose language model
+- **GLM-4.7-Flash-8bit** - Fast inference Chinese/English language model
+
+**Features:**
+- One-click launch with pre-configured optimal settings
+- No manual configuration required
+- Uses proven parameter combinations for best performance
+- Supports all standard mlx-openai-server launch options
+
+**Template Configuration:**
+Each template comes with vendor-recommended settings:
+- Appropriate tool-call parsers and message converters
+- Optimized quantization levels
+- Pre-set server configurations (port 8000, host 0.0.0.0)
+- Model-type specific optimizations
+
+> **Note:** Templates require the corresponding model to be installed in your model storage path first.
 
 ### Model Storage Configuration (v0.1.1)
 
@@ -315,6 +342,12 @@ $MODEL_DIR/                        # Selected path (External/Local/Legacy)
 - Added logo header to all configuration menus
 - Clear screen before redrawing to prevent overlapping displays
 - Cleaner UI experience when toggling options or returning from config menus
+
+**Enhancement (v0.1.10):**
+- Added **⚡ Run LM on Template** menu option for fast model launching
+- Added **GLM-4.7-Flash-8bit** template with optimized configuration
+- Added template models documentation with usage instructions
+- Improved main menu organization and discoverability
 
 ## Keyboard Shortcuts
 
