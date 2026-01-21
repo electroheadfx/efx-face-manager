@@ -89,7 +89,7 @@ brew install huggingface-cli
 - Python 3.11 or 3.12 (Python 3.13+ is not yet supported)
 - Use pyenv to manage Python versions if needed
 
-#### Installation Method 1: Using uv (Recommended)
+#### Installation Method: Using uv (Recommended)
 
 ```bash
 ```bash
@@ -131,32 +131,16 @@ mlx-openai-server() {
 
 **Verify installation:**
 ```bash
+# see mlx-openai-server doc here: https://github.com/cubist38/mlx-openai-server
 mlx-openai-server --version
 # Should show version 1.4.2 or higher for full feature support
-```
-
-> **Note:** Version 1.4.2+ is required for image-generation, image-edit, embeddings, and whisper model types.
-> See: https://github.com/cubist38/mlx-openai-server
-
-#### Installation Method 2: Using uv (Alternative)
-
-For bleeding-edge features or development:
-
-```bash
-# Install uv if not already installed
-brew install uv
-
-# Clone and set up mlx-openai-server
-git clone https://github.com/cubist38/mlx-openai-server.git ~/mlx-openai-server-dev
-cd ~/mlx-openai-server-dev
-uv venv --python=3.12
-source .venv/bin/activate
-uv pip install -e .
-uv pip install git+https://github.com/ml-explore/mlx-lm.git
 
 # Launch models from this environment
 mlx-openai-server launch --model-path /path/to/model --model-type lm
 ```
+
+> **Note:** Version 1.4.2+ is required for image-generation, image-edit, embeddings, and whisper model types.
+> See: https://github.com/cubist38/mlx-openai-server
 
 ### 6. Login to Hugging Face (optional, for private models)
 ```bash
