@@ -7,7 +7,7 @@
 # Uses gum for interactive selection
 # https://github.com/charmbracelet/gum
 
-VERSION="0.1.10"
+VERSION="0.1.11"
 
 clear
 
@@ -1276,12 +1276,23 @@ while true; do
             # Fast launch predefined template models
             template_choice=$(gum choose \
                 --header "Select a template model to run" \
-                "Qwen3-Coder-30B-A3B-Instruct-8bit" \
-                "NVIDIA-Nemotron-3-Nano-30B-A3B-MLX-8Bit" \
                 "GLM-4.7-Flash-8bit" \
+                "NVIDIA-Nemotron-3-Nano-30B-A3B-MLX-8Bit" \
+                "Qwen3-Coder-30B-A3B-Instruct-8bit" \
                 "✖ Back")
 
             case "$template_choice" in
+                "GLM-4.7-Flash-8bit")
+                    CMD_ARGS=("--model-path" "$MODEL_DIR/GLM-4.7-Flash-8bit")
+                    CMD_ARGS+=("--model-type" "lm")
+                    CMD_ARGS+=("--reasoning-parser" "glm47_flash")
+                    CMD_ARGS+=("--tool-call-parser" "glm4_moe")
+                    CMD_ARGS+=("--message-converter" "glm4_moe")
+                    CMD_ARGS+=("--debug")
+                    CMD_ARGS+=("--port" "8000")
+                    CMD_ARGS+=("--host" "0.0.0.0")
+                    confirm_and_launch
+                    ;;
                 "Qwen3-Coder-30B-A3B-Instruct-8bit")
                     CMD_ARGS=("--model-path" "$MODEL_DIR/Qwen3-Coder-30B-A3B-Instruct-8bit")
                     CMD_ARGS+=("--model-type" "lm")
@@ -1299,17 +1310,6 @@ while true; do
                     CMD_ARGS+=("--port" "8000")
                     CMD_ARGS+=("--host" "0.0.0.0")
                     CMD_ARGS+=("--trust-remote-code")
-                    confirm_and_launch
-                    ;;
-                "GLM-4.7-Flash-8bit")
-                    CMD_ARGS=("--model-path" "$MODEL_DIR/GLM-4.7-Flash-8bit")
-                    CMD_ARGS+=("--model-type" "lm")
-                    CMD_ARGS+=("--reasoning-parser" "glm4_moe") # glm47_flash
-                    CMD_ARGS+=("--tool-call-parser" "glm4_moe")
-                    CMD_ARGS+=("--message-converter" "glm4_moe")
-                    CMD_ARGS+=("--debug")
-                    CMD_ARGS+=("--port" "8000")
-                    CMD_ARGS+=("--host" "0.0.0.0")
                     confirm_and_launch
                     ;;
             esac

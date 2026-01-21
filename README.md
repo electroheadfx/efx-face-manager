@@ -9,7 +9,7 @@ MLX Hugging Face Manager
 by Laurent Marques
 ```
 
-**Version: 0.1.10**
+**Version: 0.1.11**
 
 A terminal-based LLM model manager for Apple Silicon Macs. Browse, install, and run MLX-optimized models from Hugging Face with an intuitive TUI interface.
 
@@ -89,15 +89,44 @@ brew install huggingface-cli
 - Python 3.11 or 3.12 (Python 3.13+ is not yet supported)
 - Use pyenv to manage Python versions if needed
 
-#### Installation Method 1: Using pipx (Recommended)
+#### Installation Method 1: Using uv (Recommended)
 
 ```bash
-# Install mlx-openai-server
-pipx install mlx-openai-server
+```bash
 
-# Update mlx-lm to latest version for newest model support (e.g., iquestcoder)
-pipx runpip mlx-openai-server uninstall mlx-lm -y
-pipx runpip mlx-openai-server install git+https://github.com/ml-explore/mlx-lm.git
+
+# Set your preferred Python version
+pyenv global 3.12.8
+
+cd ~/Scripts/mlx-tools
+
+# Clone the mlx-openai-server repository
+git clone https://github.com/cubist38/mlx-openai-server.git
+cd mlx-openai-server
+
+# Create virtual environment (will use your pyenv Python 3.12.8)
+uv venv
+
+# Activate the environment
+source .venv/bin/activate
+
+# Install in development mode
+uv pip install -e .
+
+# Install latest mlx-lm from GitHub if needed to update to last mlx-lm
+# uv pip install git+https://github.com/ml-explore/mlx-lm.git
+
+```
+Then
+> add in your zshrc
+```bash
+mlx-openai-server() {
+    local original_dir="$PWD"
+    cd ~/Scripts/mlx-tools/mlx-openai-server
+    source .venv/bin/activate
+    command mlx-openai-server "$@"
+    cd "$original_dir"
+}
 ```
 
 **Verify installation:**
@@ -348,6 +377,9 @@ $MODEL_DIR/                        # Selected path (External/Local/Legacy)
 - Added **GLM-4.7-Flash-8bit** template with optimized configuration
 - Added template models documentation with usage instructions
 - Improved main menu organization and discoverability
+
+**Fix (v0.1.11):**
+- Added **glm47_flash** to --reasoning-parser param from GLM-4.7-Flash-8bit template
 
 ## Keyboard Shortcuts
 
