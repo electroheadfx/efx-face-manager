@@ -7,7 +7,7 @@
 # Uses gum for interactive selection
 # https://github.com/charmbracelet/gum
 
-VERSION="0.1.11"
+VERSION="0.1.12"
 
 clear
 
@@ -1279,6 +1279,7 @@ while true; do
                 "GLM-4.7-Flash-8bit" \
                 "NVIDIA-Nemotron-3-Nano-30B-A3B-MLX-8Bit" \
                 "Qwen3-Coder-30B-A3B-Instruct-8bit" \
+                "Qwen3-VL-8B-Thinking-8bit" \
                 "✖ Back")
 
             case "$template_choice" in
@@ -1310,6 +1311,17 @@ while true; do
                     CMD_ARGS+=("--port" "8000")
                     CMD_ARGS+=("--host" "0.0.0.0")
                     CMD_ARGS+=("--trust-remote-code")
+                    confirm_and_launch
+                    ;;
+                "Qwen3-VL-8B-Thinking-8bit")
+                    CMD_ARGS=("--model-path" "$MODEL_DIR/Qwen3-VL-8B-Thinking-8bit")
+                    CMD_ARGS+=("--model-type" "multimodal")
+                    CMD_ARGS+=("--host" "0.0.0.0")
+                    CMD_ARGS+=("--port" "8000")
+                    CMD_ARGS+=("--context-length" "4096")
+                    CMD_ARGS+=("--max-concurrency" "1")
+                    CMD_ARGS+=("--queue-timeout" "300")
+                    CMD_ARGS+=("--queue-size" "100")
                     confirm_and_launch
                     ;;
             esac

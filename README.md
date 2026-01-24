@@ -9,7 +9,7 @@ MLX Hugging Face Manager
 by Laurent Marques
 ```
 
-**Version: 0.1.11**
+**Version: 0.1.12**
 
 A terminal-based LLM model manager for Apple Silicon Macs. Browse, install, and run MLX-optimized models from Hugging Face with an intuitive TUI interface.
 
@@ -239,6 +239,7 @@ Select **⚡ Run LM on Template** from the main menu to quickly launch popular l
 - **Qwen3-Coder-30B-A3B-Instruct-8bit** - Optimized for coding tasks
 - **NVIDIA-Nemotron-3-Nano-30B-A3B-MLX-8Bit** - General purpose language model
 - **GLM-4.7-Flash-8bit** - Fast inference Chinese/English language model
+- **Qwen3-VL-8B-Thinking-8bit** - Vision-language multimodal model with thinking capabilities
 
 **Features:**
 - One-click launch with pre-configured optimal settings
@@ -364,6 +365,11 @@ $MODEL_DIR/                        # Selected path (External/Local/Legacy)
 
 **Fix (v0.1.11):**
 - Added **glm47_flash** to --reasoning-parser param from GLM-4.7-Flash-8bit template
+
+**Enhancement (v0.1.12):**
+- Added **Qwen3-VL-8B-Thinking-8bit** vision template with multimodal support
+- Enhanced template collection with vision-language capabilities
+- Optimized queue management for multimodal models
 
 ## Keyboard Shortcuts
 
