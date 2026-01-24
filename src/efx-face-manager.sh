@@ -7,7 +7,7 @@
 # Uses gum for interactive selection
 # https://github.com/charmbracelet/gum
 
-VERSION="0.1.12"
+VERSION="0.1.13"
 
 clear
 
@@ -49,6 +49,49 @@ show_header() {
 if [[ "$1" == "--version" || "$1" == "-v" ]]; then
     show_version
 fi
+
+# Wrapper function to run mlx-openai-server with proper environment detection
+mlx-openai-server() {
+    # Method 1: Check if user has mlx-openai-server in PATH (pipx or system install)
+    if command -v mlx-openai-server &> /dev/null && [[ "$(type -t mlx-openai-server)" != "function" ]]; then
+        command mlx-openai-server "$@"
+        return $?
+    fi
+    
+    # Method 2: Check for uv installation with venv (recommended method from README)
+    if [[ -d "$HOME/Scripts/mlx-tools/mlx-openai-server/.venv" ]]; then
+        local original_dir="$PWD"
+        cd "$HOME/Scripts/mlx-tools/mlx-openai-server" 2>/dev/null || {
+            echo "Error: Cannot access ~/Scripts/mlx-tools/mlx-openai-server"
+            cd "$original_dir"
+            return 1
+        }
+        
+        source .venv/bin/activate
+        command mlx-openai-server "$@"
+        local exit_code=$?
+        cd "$original_dir"
+        return $exit_code
+    fi
+    
+    # Method 3: Not found - show helpful error message
+    echo "Error: mlx-openai-server not found!"
+    echo ""
+    echo "Please install mlx-openai-server using one of these methods:"
+    echo ""
+    echo "Method 1 (Recommended - uv with latest features):"
+    echo "  cd ~/Scripts/mlx-tools"
+    echo "  git clone https://github.com/cubist38/mlx-openai-server.git"
+    echo "  cd mlx-openai-server"
+    echo "  uv venv && source .venv/bin/activate"
+    echo "  uv pip install -e ."
+    echo ""
+    echo "Method 2 (pipx):"
+    echo "  pipx install mlx-openai-server"
+    echo ""
+    echo "See README.md for full installation instructions."
+    return 1
+}
 
 # Define available model storage paths
 EXTERNAL_MODEL_PATH="/Volumes/T7/mlx-server"

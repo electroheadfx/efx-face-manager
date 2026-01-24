@@ -9,7 +9,7 @@ MLX Hugging Face Manager
 by Laurent Marques
 ```
 
-**Version: 0.1.12**
+**Version: 0.1.13**
 
 A terminal-based LLM model manager for Apple Silicon Macs. Browse, install, and run MLX-optimized models from Hugging Face with an intuitive TUI interface.
 
@@ -370,6 +370,12 @@ $MODEL_DIR/                        # Selected path (External/Local/Legacy)
 - Added **Qwen3-VL-8B-Thinking-8bit** vision template with multimodal support
 - Enhanced template collection with vision-language capabilities
 - Optimized queue management for multimodal models
+
+**Fix (v0.1.13):**
+- Fixed **mlx-openai-server command not found** error in template execution
+- Added intelligent mlx-openai-server detection supporting multiple installation methods (pipx, uv venv)
+- Script now automatically detects and uses correct mlx-openai-server installation
+- Improved compatibility with both documented installation methods from README
 
 ## Keyboard Shortcuts
 
