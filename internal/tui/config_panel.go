@@ -208,19 +208,20 @@ func (m configPanelModel) Update(msg tea.Msg) (configPanelModel, tea.Cmd) {
 		case "enter":
 			return m.handleEnter()
 		case "tab":
-			// Tab cycles: Run -> Trust -> Cancel -> Col1 -> Run
+			// Tab cycles: ActionBar (Run) -> Col1 -> ActionBar (Run)
 			if m.focusedPanel == panelActionBar {
-				if m.controlSelected < 2 {
-					m.controlSelected++
-				} else {
-					// After Cancel, go to Col1
-					m.focusedPanel = panelOptions
-					m.controlSelected = 0
-				}
-			} else if m.focusedPanel == panelOptions || m.focusedPanel == panelSetup {
-				// From columns, go back to Run
+				m.focusedPanel = panelOptions
+			} else {
 				m.focusedPanel = panelActionBar
 				m.controlSelected = 0
+			}
+		case "shift+tab":
+			// Shift+Tab reverse: Col1 -> ActionBar (Run) -> Col1
+			if m.focusedPanel == panelOptions || m.focusedPanel == panelSetup {
+				m.focusedPanel = panelActionBar
+				m.controlSelected = 0
+			} else {
+				m.focusedPanel = panelOptions
 			}
 		case "esc":
 			if m.editingValue {
@@ -247,6 +248,10 @@ func (m *configPanelModel) handleEnter() (configPanelModel, tea.Cmd) {
 	case panelActionBar:
 		switch m.controlSelected {
 		case actionRun:
+			// Auto-increment port if in use
+			if m.servers.IsPortInUse(m.config.Port) {
+				m.config.Port = m.servers.NextAvailablePort(m.config.Port)
+			}
 			_, err := m.servers.Start(m.config)
 			if err != nil {
 				return *m, nil
@@ -454,6 +459,9 @@ func wrapText(text string, maxWidth int) []string {
 }
 
 func (m configPanelModel) renderActionBar(width int) string {
+	// Show port next to Run button
+	runLabel := fmt.Sprintf("▶ Run :%d", m.config.Port)
+	
 	trustLabel := "🔐 Trust: "
 	if m.config.TrustRemoteCode {
 		trustLabel += "on"
@@ -461,7 +469,7 @@ func (m configPanelModel) renderActionBar(width int) string {
 		trustLabel += "off"
 	}
 	
-	controls := []string{"▶ Run", trustLabel, "✖ Cancel"}
+	controls := []string{runLabel, trustLabel, "✖ Cancel"}
 	
 	var parts []string
 	for i, ctrl := range controls {

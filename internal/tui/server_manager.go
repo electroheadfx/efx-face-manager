@@ -157,7 +157,11 @@ func (m serverManagerModel) View() string {
 	contentWidth := m.width - 4
 	var b strings.Builder
 
-	// Compact header
+	// Compact header - same as other pages
+	b.WriteString(renderHeader(version, m.width))
+	b.WriteString("\n")
+
+	// Server count info
 	if serverCount > 0 {
 		b.WriteString(subtitleStyle.Render(fmt.Sprintf("Server Manager (%d running)", serverCount)))
 	} else {
@@ -168,7 +172,7 @@ func (m serverManagerModel) View() string {
 	// Calculate panel widths - full width
 	leftWidth := contentWidth * 35 / 100
 	rightWidth := contentWidth * 65 / 100 - 4
-	panelHeight := m.height - 8
+	panelHeight := m.height - 14
 
 	// Left panel: Server list + controls
 	leftContent := m.renderControlPanel(leftWidth, list)
@@ -176,7 +180,7 @@ func (m serverManagerModel) View() string {
 	// Right panel: Log viewport
 	rightContent := m.renderLogPanel(rightWidth)
 
-	// Apply styles
+	// Apply styles - align to top
 	leftBorder := muted
 	rightBorder := muted
 	if !m.focusOnLogs {
@@ -190,7 +194,7 @@ func (m serverManagerModel) View() string {
 		Height(panelHeight).
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(leftBorder).
-		Padding(1, 1).
+		Padding(0, 1).
 		Render(leftContent)
 
 	rightPanel := lipgloss.NewStyle().
@@ -198,13 +202,19 @@ func (m serverManagerModel) View() string {
 		Height(panelHeight).
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(rightBorder).
-		Padding(1, 1).
+		Padding(0, 1).
 		Render(rightContent)
 
 	panels := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, rightPanel)
 	b.WriteString(panels)
 
-	// Footer (no padding - content starts at top)
+	// Calculate padding to push footer to bottom
+	content := b.String()
+	contentLines := strings.Count(content, "\n") + 1
+	padding := calculatePadding(contentLines, 1, m.height)
+	b.WriteString(strings.Repeat("\n", padding))
+
+	// Footer
 	b.WriteString("\n" + helpStyle.Render("[↑/↓] select server  [s] stop  [S] stop all  [n] new  [c] clear  [tab] focus logs  [esc] menu"))
 
 	return appStyle.Render(b.String())

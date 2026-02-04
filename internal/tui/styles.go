@@ -162,6 +162,19 @@ const asciiHeader = `┌─┐┌─┐─┐ ┬   ┌─┐┌─┐┌─┐�
 ├┤ ├┤ ┌┴┬┘───├┤ ├─┤│  ├┤ 
 └─┘└  ┴ └─   └  ┴ ┴└─┘└─┘`
 
+// ASCII Art header - mini version for other pages (option 4)
+const asciiHeaderMini = `█▀▀ █▀▀ ▀▄▀   █▀▀ █▀█ █▀▀ █▀▀
+██▄ █▀  ▄▀▄ ▬ █▀  █▀█ █▄▄ ██▄`
+
+// ASCII Art header - bigger version for main menu
+const asciiHeaderBig = `
+███████╗███████╗██╗  ██╗      ███████╗ █████╗  ██████╗███████╗
+██╔════╝██╔════╝╚██╗██╔╝      ██╔════╝██╔══██╗██╔════╝██╔════╝
+█████╗  █████╗   ╚███╔╝ █████╗█████╗  ███████║██║     █████╗  
+██╔══╝  ██╔══╝   ██╔██╗ ╚════╝██╔══╝  ██╔══██║██║     ██╔══╝  
+███████╗██║     ██╔╝ ██╗      ██║     ██║  ██║╚██████╗███████╗
+╚══════╝╚═╝     ╚═╝  ╚═╝      ╚═╝     ╚═╝  ╚═╝ ╚═════╝╚══════╝`
+
 // getContentWidth returns 80% of terminal width (for content area)
 func getContentWidth(termWidth int) int {
 	width := termWidth * 80 / 100
@@ -174,12 +187,12 @@ func getContentWidth(termWidth int) int {
 	return width
 }
 
-// renderHeader renders a compact header (just logo + version inline)
+// renderHeader renders a compact header with mini logo + version
 func renderHeader(version string, termWidth int) string {
 	contentWidth := getContentWidth(termWidth)
 	
-	// Compact: just ASCII art with version on same line
-	headerLine := titleStyle.Render(asciiHeader) + "  " + infoLineStyle.Render("v"+version)
+	// Mini logo with version on same line
+	headerLine := titleStyle.Render(asciiHeaderMini) + "  " + infoLineStyle.Render("v"+version)
 	
 	return lipgloss.NewStyle().Width(contentWidth).Render(headerLine)
 }

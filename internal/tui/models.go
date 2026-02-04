@@ -45,6 +45,9 @@ func (m templatesModel) Update(msg tea.Msg) (templatesModel, tea.Cmd) {
 			if m.selected < len(m.templates) {
 				m.selected++
 			}
+		case "tab":
+			// Switch to models view
+			return m, func() tea.Msg { return openModelsMsg{} }
 		case "enter":
 			// Back option selected
 			if m.selected == len(m.templates) {
@@ -84,6 +87,12 @@ func (m templatesModel) View() string {
 	b.WriteString(sectionTitleStyle.Render(strings.Repeat("─", contentWidth-4)))
 	b.WriteString("\n\n")
 
+	// Calculate column widths dynamically (total = contentWidth - 8 for margins/prefix)
+	totalWidth := contentWidth - 8
+	col1Width := totalWidth * 50 / 100  // 50% for name
+	col2Width := totalWidth * 15 / 100  // 15% for type (fits "multimodal")
+	col3Width := totalWidth - col1Width - col2Width  // rest for description
+
 	// Template list
 	for i, t := range m.templates {
 		installed := "✗"
@@ -91,16 +100,16 @@ func (m templatesModel) View() string {
 			installed = "✓"
 		}
 		
-		line := fmt.Sprintf("%s %-35s %-6s %s", 
+		line := fmt.Sprintf("%s %-*s %-*s %s", 
 			installed, 
-			truncateStr(t.Name, 35), 
-			t.ModelType, 
-			t.Description)
+			col1Width, truncateStr(t.Name, col1Width), 
+			col2Width, t.ModelType, 
+			truncateStr(t.Description, col3Width))
 
 		if i == m.selected {
 			b.WriteString(menuItemSelectedStyle.Width(contentWidth - 4).Render("> " + line) + "\n")
 		} else {
-			b.WriteString(menuItemStyle.Render("  " + line) + "\n")
+			b.WriteString(menuItemStyle.Width(contentWidth - 4).Render("  " + line) + "\n")
 		}
 	}
 
@@ -119,7 +128,7 @@ func (m templatesModel) View() string {
 	b.WriteString(strings.Repeat("\n", padding))
 
 	// Footer
-	helpText := "[↵] run  [esc] back"
+	helpText := "[↵] run  [tab] models  [esc] back"
 	b.WriteString("\n" + helpStyle.Render(helpText))
 
 	return appStyle.Render(b.String())
@@ -162,6 +171,9 @@ func (m modelsModel) Update(msg tea.Msg) (modelsModel, tea.Cmd) {
 			if m.selected < maxIdx {
 				m.selected++
 			}
+		case "tab":
+			// Switch to templates view
+			return m, func() tea.Msg { return openTemplatesMsg{} }
 		case "enter":
 			// Back option selected
 			if m.selected == len(m.models) {
@@ -228,7 +240,7 @@ func (m modelsModel) View() string {
 	b.WriteString(strings.Repeat("\n", padding))
 
 	// Footer
-	helpText := "[↵] select type  [esc] back"
+	helpText := "[↵] select type  [tab] templates  [esc] back"
 	b.WriteString("\n" + helpStyle.Render(helpText))
 
 	return appStyle.Render(b.String())
