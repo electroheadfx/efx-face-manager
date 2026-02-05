@@ -91,15 +91,6 @@ var infoLineStyle = lipgloss.NewStyle().
 	Foreground(muted).
 	Italic(true)
 
-// ASCII Art header - bigger version for main menu
-const asciiHeaderBig = `
-███████╗███████╗██╗  ██╗      ███████╗ █████╗  ██████╗███████╗
-██╔════╝██╔════╝╚██╗██╔╝      ██╔════╝██╔══██╗██╔════╝██╔════╝
-█████╗  █████╗   ╚███╔╝ █████╗█████╗  ███████║██║     █████╗  
-██╔══╝  ██╔══╝   ██╔██╗ ╚════╝██╔══╝  ██╔══██║██║     ██╔══╝  
-███████╗██║     ██╔╝ ██╗      ██║     ██║  ██║╚██████╗███████╗
-╚══════╝╚═╝     ╚═╝  ╚═╝      ╚═╝     ╚═╝  ╚═╝ ╚═════╝╚══════╝`
-
 // Option selected in list
 var optionSelectedStyle = lipgloss.NewStyle().
 	Foreground(white).

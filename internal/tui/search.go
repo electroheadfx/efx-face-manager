@@ -379,17 +379,30 @@ func (m searchModel) View() string {
 	b.WriteString("\n")
 
 	// Items
+	perPage := m.getItemsPerPage()
+	
 	if m.loading {
 		b.WriteString(m.spinner.View() + " Loading models from " + hfSources[m.sourceIdx] + "...")
 		b.WriteString("\n")
+		// Pad to maintain consistent height during loading
+		for i := 1; i < perPage; i++ {
+			b.WriteString("\n")
+		}
 	} else if m.err != nil {
 		b.WriteString(errorStyle.Render(fmt.Sprintf("  Error: %v", m.err)))
 		b.WriteString("\n")
+		// Pad to maintain consistent height
+		for i := 1; i < perPage; i++ {
+			b.WriteString("\n")
+		}
 	} else if len(m.filtered) == 0 {
 		b.WriteString(statusMutedStyle.Render("  No models found"))
 		b.WriteString("\n")
+		// Pad to maintain consistent height
+		for i := 1; i < perPage; i++ {
+			b.WriteString("\n")
+		}
 	} else {
-		perPage := m.getItemsPerPage()
 		startIdx := m.currentPage * perPage
 		endIdx := startIdx + perPage
 		if endIdx > len(m.filtered) {
