@@ -247,9 +247,9 @@ func (m menuModel) View() string {
 	contentWidth := getContentWidth(m.width)
 	var b strings.Builder
 
-	// Use compact header like other pages
-	b.WriteString(renderHeader(version, m.width))
-	b.WriteString("\n\n")
+	// Use menu-specific header with full title
+	b.WriteString(renderMenuHeader(version, m.width))
+	b.WriteString("\n\n\n")
 
 	// Box styles
 	boxWidth := contentWidth - 21

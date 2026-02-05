@@ -139,10 +139,32 @@ func getContentWidth(termWidth int) int {
 func renderHeader(version string, termWidth int) string {
 	contentWidth := getContentWidth(termWidth)
 	
-	// Mini logo with version on same line
-	headerLine := titleStyle.Render(asciiHeaderMini) + "  " + infoLineStyle.Render("v"+version)
+	// Mini logo on first line
+	logoLine := titleStyle.Render(asciiHeaderMini)
 	
-	return lipgloss.NewStyle().Width(contentWidth).Render(headerLine)
+	// Full title and version on second line, left-aligned
+	titleLine := infoLineStyle.Align(lipgloss.Left).Render("MLX Hugging Face Manager - ©efx v"+version)
+	
+	// Join vertically with left alignment
+	header := lipgloss.JoinVertical(lipgloss.Left, logoLine, titleLine)
+	
+	return lipgloss.NewStyle().Width(contentWidth).Render(header)
+}
+
+// renderMenuHeader renders the main menu header with full title
+func renderMenuHeader(version string, termWidth int) string {
+	contentWidth := getContentWidth(termWidth)
+	
+	// Mini logo on first line
+	logoLine := titleStyle.Render(asciiHeaderMini)
+	
+	// Full title and version on second line, left-aligned
+	titleLine := infoLineStyle.Align(lipgloss.Left).Render("MLX Hugging Face Manager - ©efx v"+version)
+	
+	// Join vertically with left alignment
+	header := lipgloss.JoinVertical(lipgloss.Left, logoLine, titleLine)
+	
+	return lipgloss.NewStyle().Width(contentWidth).Render(header)
 }
 
 // calculatePadding calculates vertical padding to push footer to bottom
