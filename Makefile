@@ -3,7 +3,7 @@ BINARY := efx-face
 BUILD_DIR := bin
 LDFLAGS := -ldflags "-s -w -X main.version=$(VERSION)"
 
-.PHONY: build install clean build-all build-mac build-linux build-windows run lint test dev help
+.PHONY: build install clean build-all build-mac build-linux build-windows release run lint test dev help
 
 # Default build (current platform)
 build:
@@ -56,6 +56,22 @@ build-windows:
 	@echo "✓ Windows builds done"
 
 # ==========================================
+# Release packaging
+# ==========================================
+
+# Create release archives for GitHub
+release: build-all
+	@echo "Creating release archives..."
+	@cd $(BUILD_DIR) && tar -czf $(BINARY)-$(VERSION)-darwin-arm64.tar.gz $(BINARY)-darwin-arm64
+	@cd $(BUILD_DIR) && tar -czf $(BINARY)-$(VERSION)-darwin-amd64.tar.gz $(BINARY)-darwin-amd64
+	@cd $(BUILD_DIR) && tar -czf $(BINARY)-$(VERSION)-linux-amd64.tar.gz $(BINARY)-linux-amd64
+	@cd $(BUILD_DIR) && tar -czf $(BINARY)-$(VERSION)-linux-arm64.tar.gz $(BINARY)-linux-arm64
+	@cd $(BUILD_DIR) && zip -q $(BINARY)-$(VERSION)-windows-amd64.zip $(BINARY)-windows-amd64.exe
+	@cd $(BUILD_DIR) && zip -q $(BINARY)-$(VERSION)-windows-arm64.zip $(BINARY)-windows-arm64.exe
+	@echo "✅ Release archives created:"
+	@ls -la $(BUILD_DIR)/*.tar.gz $(BUILD_DIR)/*.zip
+
+# ==========================================
 # Development tools
 # ==========================================
 
@@ -89,6 +105,7 @@ help:
 	@echo "  make build-mac     - Build for macOS (ARM64 + AMD64)"
 	@echo "  make build-linux   - Build for Linux (ARM64 + AMD64)"
 	@echo "  make build-windows - Build for Windows (ARM64 + AMD64)"
+	@echo "  make release       - Build all + create release archives (.tar.gz/.zip)"
 	@echo ""
 	@echo "Development Commands:"
 	@echo "  make run           - Build and run"

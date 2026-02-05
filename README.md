@@ -8,6 +8,25 @@ Browse, install, and run MLX-optimized models from Hugging Face with an intuitiv
 
 ---
 
+## Table of Contents
+
+- [Features](#features)
+- [Installation](#installation)
+- [Prerequisites](#prerequisites)
+- [How to Use](#how-to-use)
+  - [Home Screen](#home-screen)
+  - [Running Models with Templates](#running-models-with-templates)
+  - [Running Installed Models](#running-installed-models)
+  - [Server Management](#server-management)
+  - [Settings](#settings)
+  - [Uninstalling Models](#uninstalling-models)
+- [Keyboard Reference](#keyboard-reference)
+- [Building](#building)
+- [Troubleshooting](#troubleshooting)
+- [Credits](#credits)
+
+---
+
 ## Features
 
 ### Core Features
@@ -30,6 +49,93 @@ Browse, install, and run MLX-optimized models from Hugging Face with an intuitiv
 - **Interactive Configuration** — Single-page settings with live preview
 - **Command Preview** — Review full command before execution
 - **Flexible Storage** — Configure external or local model storage paths
+
+---
+
+## Installation
+
+### Quick Install (Recommended)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/electroheadfx/efx-face-manager/main/install.sh | bash
+```
+
+This will:
+- Detect your OS and architecture
+- Download the correct binary
+- Install to `/usr/local/bin`
+- Create default config with model directory
+
+### Manual Download
+
+Download from [Releases](https://github.com/electroheadfx/efx-face-manager/releases):
+
+| Platform | Architecture | Binary |
+|----------|--------------|--------|
+| macOS | Apple Silicon (M1/M2/M3/M4) | `efx-face-darwin-arm64` |
+| macOS | Intel | `efx-face-darwin-amd64` |
+| Linux | x86_64 | `efx-face-linux-amd64` |
+| Linux | ARM64 | `efx-face-linux-arm64` |
+| Windows | x86_64 | `efx-face-windows-amd64.exe` |
+| Windows | ARM64 | `efx-face-windows-arm64.exe` |
+
+```bash
+# macOS/Linux
+chmod +x efx-face-darwin-arm64
+sudo mv efx-face-darwin-arm64 /usr/local/bin/efx-face
+efx-face
+```
+
+### Build from Source
+
+```bash
+git clone https://github.com/electroheadfx/efx-face-manager.git
+cd efx-face-manager
+make build
+./bin/efx-face
+```
+
+### Go Install
+
+```bash
+go install github.com/electroheadfx/efx-face-manager/cmd/efx-face@latest
+```
+
+---
+
+## Prerequisites
+
+### MLX OpenAI Server
+
+Required to run models. Install using uv (recommended):
+
+```bash
+git clone https://github.com/cubist38/mlx-openai-server.git
+cd mlx-openai-server
+uv venv && source .venv/bin/activate
+uv pip install -e .
+```
+
+Add to `.zshrc`:
+
+```bash
+mlx-openai-server() {
+    local original_dir="$PWD"
+    cd ~/path/to/mlx-openai-server
+    source .venv/bin/activate
+    command mlx-openai-server "$@"
+    cd "$original_dir"
+}
+```
+
+Or use pipx: `pipx install mlx-openai-server`
+
+### Hugging Face CLI
+
+```bash
+brew install huggingface-cli
+# Optional: hf auth login
+```
 
 ---
 
@@ -198,81 +304,6 @@ This frees up disk space by cleaning the Hugging Face cache.
 
 ---
 
-## Installation
-
-### Option 1: Download Pre-built Binary (Recommended)
-
-Download from [Releases](https://github.com/electroheadfx/efx-face-manager/releases):
-
-| Platform | Architecture | Binary |
-|----------|--------------|--------|
-| macOS | Apple Silicon (M1/M2/M3/M4) | `efx-face-darwin-arm64` |
-| macOS | Intel | `efx-face-darwin-amd64` |
-| Linux | x86_64 | `efx-face-linux-amd64` |
-| Linux | ARM64 | `efx-face-linux-arm64` |
-| Windows | x86_64 | `efx-face-windows-amd64.exe` |
-| Windows | ARM64 | `efx-face-windows-arm64.exe` |
-
-```bash
-# macOS/Linux
-chmod +x efx-face-darwin-arm64
-sudo mv efx-face-darwin-arm64 /usr/local/bin/efx-face
-efx-face
-```
-
-### Option 2: Build from Source
-
-```bash
-git clone https://github.com/electroheadfx/efx-face-manager.git
-cd efx-face-manager
-make build
-./bin/efx-face
-```
-
-### Option 3: Go Install
-
-```bash
-go install github.com/electroheadfx/efx-face-manager/cmd/efx-face@latest
-```
-
----
-
-## Prerequisites
-
-### MLX OpenAI Server
-
-Required to run models. Install using uv (recommended):
-
-```bash
-git clone https://github.com/cubist38/mlx-openai-server.git
-cd mlx-openai-server
-uv venv && source .venv/bin/activate
-uv pip install -e .
-```
-
-Add to `.zshrc`:
-
-```bash
-mlx-openai-server() {
-    local original_dir="$PWD"
-    cd ~/path/to/mlx-openai-server
-    source .venv/bin/activate
-    command mlx-openai-server "$@"
-    cd "$original_dir"
-}
-```
-
-Or use pipx: `pipx install mlx-openai-server`
-
-### Hugging Face CLI
-
-```bash
-brew install huggingface-cli
-# Optional: hf auth login
-```
-
----
-
 ## Keyboard Reference
 
 | Key | Action |
@@ -299,6 +330,7 @@ make build-all     # All 6 platforms
 make build-mac     # macOS ARM64 + AMD64
 make build-linux   # Linux ARM64 + AMD64
 make build-windows # Windows ARM64 + AMD64
+make release       # Build + create archives for GitHub
 make help          # Show all options
 ```
 
@@ -307,7 +339,7 @@ make help          # Show all options
 ## Troubleshooting
 
 **"mlx-openai-server: command not found"**
-→ Install mlx-openai-server (see Prerequisites)
+→ Install mlx-openai-server (see [Prerequisites](#prerequisites))
 
 **"Model type not supported"**
 → Update mlx-lm: `uv pip install git+https://github.com/ml-explore/mlx-lm.git`
