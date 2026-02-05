@@ -22,7 +22,13 @@ type serverManagerModel struct {
 }
 
 func newServerManagerModel(servers *server.Manager, width, height int) serverManagerModel {
-	vp := viewport.New(width/2-4, height-10)
+	// Calculate proper viewport dimensions to prevent crash
+	contentWidth := width - 4
+	logPanelHeight := height - 8 - 7  // control height (8) + title/borders/footer (7)
+	if logPanelHeight < 5 {
+		logPanelHeight = 5
+	}
+	vp := viewport.New(contentWidth-4, logPanelHeight-3)  // Account for padding and title
 	
 	m := serverManagerModel{
 		servers:  servers,
@@ -137,8 +143,14 @@ func (m serverManagerModel) Update(msg tea.Msg) (serverManagerModel, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.viewport.Width = msg.Width/2 - 4
-		m.viewport.Height = msg.Height - 10
+		// Update viewport dimensions to match new layout
+		contentWidth := msg.Width - 4
+		logPanelHeight := msg.Height - 8 - 7  // control height (8) + title/borders/footer (7)
+		if logPanelHeight < 5 {
+			logPanelHeight = 5
+		}
+		m.viewport.Width = contentWidth - 4
+		m.viewport.Height = logPanelHeight - 3  // Account for padding and title
 	}
 	
 	// Update viewport for scroll
@@ -157,144 +169,139 @@ func (m serverManagerModel) View() string {
 	contentWidth := m.width - 4
 	var b strings.Builder
 
-	// Compact header - same as other pages
-	b.WriteString(renderHeader(version, m.width))
-	b.WriteString("\n")
-
-	// Server count info
+	// Title line at top - appStyle provides padding
 	if serverCount > 0 {
 		b.WriteString(subtitleStyle.Render(fmt.Sprintf("Server Manager (%d running)", serverCount)))
 	} else {
 		b.WriteString(subtitleStyle.Render("Server Manager"))
 	}
-	b.WriteString("\n\n")
+	b.WriteString("\n")
 
-	// Calculate panel widths - full width
-	leftWidth := contentWidth * 35 / 100
-	rightWidth := contentWidth * 65 / 100 - 4
-	panelHeight := m.height - 14
-
-	// Left panel: Server list + controls
-	leftContent := m.renderControlPanel(list)
-
-	// Right panel: Log viewport
-	rightContent := m.renderLogPanel(rightWidth)
-
-	// Apply styles - align to top
-	leftBorder := muted
-	rightBorder := muted
+	// VERTICAL LAYOUT: Row 1 (Server Controls with 2 columns) + Row 2 (Logs full width)
+	
+	// Row 1: Server Controls - Minimal height to maximize log space
+	controlPanelHeight := 8  // Compact height - content fills without gaps
+	leftColWidth := contentWidth * 50 / 100 - 2
+	rightColWidth := contentWidth * 50 / 100 - 2
+	
+	// Left column: Server list
+	leftControlContent := m.renderServerList(list)
+	// Right column: Selected server details
+	rightControlContent := m.renderServerDetails()
+	
+	controlBorder := muted
 	if !m.focusOnLogs {
-		leftBorder = primary
-	} else {
-		rightBorder = primary
+		controlBorder = primary
 	}
-
-	leftPanel := lipgloss.NewStyle().
-		Width(leftWidth).
-		Height(panelHeight).
+	
+	leftControlPanel := lipgloss.NewStyle().
+		Width(leftColWidth).
+		Height(controlPanelHeight).
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(leftBorder).
+		BorderForeground(controlBorder).
 		Padding(0, 1).
-		Render(leftContent)
-
-	rightPanel := lipgloss.NewStyle().
-		Width(rightWidth).
-		Height(panelHeight).
+		Render(leftControlContent)
+	
+	rightControlPanel := lipgloss.NewStyle().
+		Width(rightColWidth).
+		Height(controlPanelHeight).
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(rightBorder).
+		BorderForeground(controlBorder).
 		Padding(0, 1).
-		Render(rightContent)
+		Render(rightControlContent)
+	
+	controlRow := lipgloss.JoinHorizontal(lipgloss.Top, leftControlPanel, rightControlPanel)
+	b.WriteString(controlRow)
+	b.WriteString("\n")
 
-	panels := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, rightPanel)
-	b.WriteString(panels)
+	// Row 2: Log viewport - Full width with maximized height
+	logPanelHeight := m.height - controlPanelHeight - 7  // Account for title, borders, footer
+	if logPanelHeight < 5 {
+		logPanelHeight = 5  // Minimum height to prevent crash
+	}
+	
+	logContent := m.renderLogPanel()
+	
+	logBorder := muted
+	if m.focusOnLogs {
+		logBorder = primary
+	}
+	
+	logPanel := lipgloss.NewStyle().
+		Width(contentWidth).
+		Height(logPanelHeight).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(logBorder).
+		Padding(0, 1).
+		Render(logContent)
+	
+	b.WriteString(logPanel)
 
-	// Calculate padding to push footer to bottom
-	content := b.String()
-	contentLines := strings.Count(content, "\n") + 1
-	padding := calculatePadding(contentLines, 1, m.height)
-	b.WriteString(strings.Repeat("\n", padding))
-
-	// Footer
-	b.WriteString("\n" + helpStyle.Render("[↑/↓] select server  [s] stop  [S] stop all  [n] new  [c] clear  [tab] focus logs  [esc] menu"))
+	// Footer with shortcuts
+	b.WriteString("\n")
+	b.WriteString(helpStyle.Render("[↑/↓] select server  [s] stop  [S] stop all  [n] new  [c] clear  [tab] focus logs  [esc] menu"))
 
 	return appStyle.Render(b.String())
 }
 
-func (m serverManagerModel) renderControlPanel(list []*server.Instance) string {
+// renderServerList renders the left column: running servers list
+func (m serverManagerModel) renderServerList(list []*server.Instance) string {
 	var b strings.Builder
 	
-	b.WriteString(panelTitleStyle.Render("Server Controls"))
-	b.WriteString("\n\n")
+	b.WriteString(panelTitleStyle.Render(fmt.Sprintf("Running Servers (%d)", len(list))))
+	b.WriteString("\n")
 	
 	if len(list) == 0 {
 		b.WriteString(statusMutedStyle.Render("No servers running"))
-		b.WriteString("\n\n")
-		b.WriteString(infoLineStyle.Render("Press [n] to start a new server"))
 	} else {
-		b.WriteString(sectionTitleStyle.Render(fmt.Sprintf("Running Servers (%d)", len(list))))
-		b.WriteString("\n")
-		
-		// Server list
 		for i, inst := range list {
 			typeShort := string(inst.Type)
-			if len(typeShort) > 5 {
-				typeShort = typeShort[:5]
+			if len(typeShort) > 4 {
+				typeShort = typeShort[:4]
 			}
-			
-			line := fmt.Sprintf("● %-25s :%d  %s", 
-				truncateStr(inst.Model, 25), 
-				inst.Port, 
-				typeShort)
-			
+			shortcut := ""
+			if i < 9 {
+				shortcut = fmt.Sprintf(" [%d]", i+1)
+			}
+			line := fmt.Sprintf("● %-30s :%d %s%s", truncateStr(inst.Model, 30), inst.Port, typeShort, shortcut)
 			if inst.Port == m.selectedPort {
 				b.WriteString(optionSelectedStyle.Render(fmt.Sprintf("> %s", line)))
 			} else {
 				b.WriteString(optionNormalStyle.Render(fmt.Sprintf("  %s", line)))
 			}
-			b.WriteString("\n")
-			
-			// Show number shortcut
-			if i < 9 {
-				b.WriteString(statusMutedStyle.Render(fmt.Sprintf("    [%d]", i+1)))
+			if i < len(list)-1 {
 				b.WriteString("\n")
 			}
 		}
-		
-		// Selected server details
-		if m.selectedPort > 0 {
-			if inst := m.servers.Get(m.selectedPort); inst != nil {
-				b.WriteString("\n")
-				b.WriteString(sectionTitleStyle.Render("Selected Server"))
-				b.WriteString("\n")
-				b.WriteString(fmt.Sprintf("Model: %s\n", inst.Model))
-				b.WriteString(fmt.Sprintf("Type:  %s\n", inst.Type))
-				b.WriteString(fmt.Sprintf("Port:  %d\n", inst.Port))
-				b.WriteString(fmt.Sprintf("Host:  %s\n", inst.Host))
-			}
-		}
-		
-		// Actions
-		b.WriteString("\n")
-		b.WriteString(sectionTitleStyle.Render("Actions"))
-		b.WriteString("\n")
-		b.WriteString("  [s] Stop this server\n")
-		if len(list) > 1 {
-			b.WriteString("  [S] Stop ALL servers\n")
-		}
-		b.WriteString("  [n] Start new server...\n")
-		b.WriteString("  [m] Back to main menu\n")
 	}
-	
 	return b.String()
 }
 
-func (m serverManagerModel) renderLogPanel(width int) string {
+// renderServerDetails renders the right column: selected server details & actions
+func (m serverManagerModel) renderServerDetails() string {
 	var b strings.Builder
 	
-	// Title with server info
+	b.WriteString(panelTitleStyle.Render("Selected Server"))
+	b.WriteString("\n")
 	if m.selectedPort > 0 {
 		if inst := m.servers.Get(m.selectedPort); inst != nil {
-			b.WriteString(panelTitleStyle.Render(fmt.Sprintf("Server Output: %s :%d", truncateStr(inst.Model, 20), inst.Port)))
+			b.WriteString(fmt.Sprintf("Model: %s\n", truncateStr(inst.Model, 35)))
+			b.WriteString(fmt.Sprintf("Type: %s  Port: %d  Host: %s\n", inst.Type, inst.Port, inst.Host))
+		}
+	} else {
+		b.WriteString(statusMutedStyle.Render("No server selected\n"))
+	}
+	b.WriteString(sectionTitleStyle.Render("Actions") + " [s]Stop [S]ALL [n]New [m]Menu")
+	return b.String()
+}
+
+func (m serverManagerModel) renderLogPanel() string {
+	var b strings.Builder
+	
+	// Title with server info - no truncation, no newlines, no separator
+	if m.selectedPort > 0 {
+		if inst := m.servers.Get(m.selectedPort); inst != nil {
+			b.WriteString(panelTitleStyle.Render(fmt.Sprintf("Server Output: %s :%d", inst.Model, inst.Port)))
 		} else {
 			b.WriteString(panelTitleStyle.Render("Server Output"))
 		}
@@ -302,8 +309,6 @@ func (m serverManagerModel) renderLogPanel(width int) string {
 		b.WriteString(panelTitleStyle.Render("Server Output"))
 	}
 	b.WriteString("\n")
-	b.WriteString(sectionTitleStyle.Render(strings.Repeat("─", width-4)))
-	b.WriteString("\n\n")
 	
 	// Viewport content
 	if m.selectedPort > 0 {
@@ -312,9 +317,9 @@ func (m serverManagerModel) renderLogPanel(width int) string {
 		b.WriteString(statusMutedStyle.Render("No server selected"))
 	}
 	
-	// Scroll indicator
+	// Scroll indicator - no extra newline
 	if m.selectedPort > 0 {
-		b.WriteString("\n")
+		b.WriteString(" ")
 		b.WriteString(infoLineStyle.Render(fmt.Sprintf("%.0f%% [↑/↓] scroll  [g/G] top/bottom", m.viewport.ScrollPercent()*100)))
 	}
 	

@@ -66,8 +66,6 @@ func (m templatesModel) Update(msg tea.Msg) (templatesModel, tea.Cmd) {
 					return openConfigPanelMsg{config: cfg}
 				}
 			}
-		case "esc":
-			return m, func() tea.Msg { return goBackMsg{} }
 		}
 	}
 	return m, nil
@@ -128,7 +126,7 @@ func (m templatesModel) View() string {
 	b.WriteString(strings.Repeat("\n", padding))
 
 	// Footer
-	helpText := "[↵] run  [tab] models  [esc] back"
+	helpText := "[↵] run  [tab] models  [esc] back  [q] home"
 	b.WriteString("\n" + helpStyle.Render(helpText))
 
 	return appStyle.Render(b.String())
@@ -185,8 +183,6 @@ func (m modelsModel) Update(msg tea.Msg) (modelsModel, tea.Cmd) {
 					return openModelTypeMsg{model: modelName}
 				}
 			}
-		case "esc":
-			return m, func() tea.Msg { return goBackMsg{} }
 		}
 	}
 	return m, nil
@@ -240,7 +236,7 @@ func (m modelsModel) View() string {
 	b.WriteString(strings.Repeat("\n", padding))
 
 	// Footer
-	helpText := "[↵] select type  [tab] templates  [esc] back"
+	helpText := "[↵] select type  [tab] templates  [esc] back  [q] home"
 	b.WriteString("\n" + helpStyle.Render(helpText))
 
 	return appStyle.Render(b.String())
@@ -327,8 +323,6 @@ func (m modelTypeModel) Update(msg tea.Msg) (modelTypeModel, tea.Cmd) {
 					return openConfigPanelMsg{config: cfg}
 				}
 			}
-		case "esc":
-			return m, func() tea.Msg { return openModelsMsg{} }
 		}
 	}
 	return m, nil
@@ -374,7 +368,7 @@ func (m modelTypeModel) View() string {
 	b.WriteString(strings.Repeat("\n", padding))
 
 	// Footer
-	helpText := "[↵] configure  [esc] back"
+	helpText := "[↵] configure  [esc] back  [q] home"
 	b.WriteString("\n" + helpStyle.Render(helpText))
 
 	return appStyle.Render(b.String())

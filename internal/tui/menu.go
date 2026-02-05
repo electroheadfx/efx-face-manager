@@ -247,16 +247,8 @@ func (m menuModel) View() string {
 	contentWidth := getContentWidth(m.width)
 	var b strings.Builder
 
-	// Render header and subtitle together with explicit left alignment
-	headerContent := lipgloss.JoinVertical(lipgloss.Left,
-		titleStyle.Render(asciiHeaderBig),
-		infoLineStyle.Render("M L X   H u g g i n g F a c e   M a n a g e r"),
-	)
-	b.WriteString(headerContent)
-	
-	// Version line below with leading spaces - explicitly left-aligned
-	versionLine := "v" + version + " - Efx"
-	b.WriteString(infoLineStyle.Align(lipgloss.Left).Render(versionLine))
+	// Use compact header like other pages
+	b.WriteString(renderHeader(version, m.width))
 	b.WriteString("\n\n")
 
 	// Box styles

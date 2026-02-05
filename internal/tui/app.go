@@ -31,10 +31,12 @@ const (
 
 // Main application model
 type appModel struct {
-	state  viewState
-	width  int
-	height int
-	err    error
+	state        viewState
+	history      []viewState // Navigation history stack
+	lastQPressTime int64      // Track last 'q' press for double-q quit
+	width        int
+	height       int
+	err          error
 
 	// Core services
 	cfg      *config.Config
@@ -63,11 +65,26 @@ func initialModel() appModel {
 
 	return appModel{
 		state:     viewMenu,
+		history:   []viewState{},
 		cfg:       cfg,
 		store:     store,
 		servers:   servers,
 		menuModel: newMenuModel(cfg, store),
 	}
+}
+
+// pushHistory adds current state to history before navigating (returns new history)
+func pushHistory(history []viewState, state viewState) []viewState {
+	return append(history, state)
+}
+
+// popHistory returns previous state and new history
+func popHistory(history []viewState) (viewState, []viewState) {
+	if len(history) == 0 {
+		return viewMenu, history
+	}
+	prevState := history[len(history)-1]
+	return prevState, history[:len(history)-1]
 }
 
 func (m appModel) Init() tea.Cmd {
@@ -82,25 +99,76 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		// Global key bindings - skip for views with text input
+		// Handle ESC globally for ALL views - navigate back using history
+		if msg.String() == "esc" && m.state != viewMenu {
+			prevState, newHistory := popHistory(m.history)
+			m.history = newHistory
+			m.state = prevState
+			
+			// Reinitialize the model for the previous state
+			switch prevState {
+			case viewMenu:
+				m.menuModel = newMenuModel(m.cfg, m.store)
+				m.menuModel.width = m.width
+				m.menuModel.height = m.height
+				m.menuModel.serverCount = m.servers.Count()
+			case viewTemplates:
+				m.templatesModel = newTemplatesModel(m.cfg, m.store)
+				m.templatesModel.width = m.width
+				m.templatesModel.height = m.height
+			case viewModels:
+				m.modelsModel = newModelsModel(m.cfg, m.store)
+				m.modelsModel.width = m.width
+				m.modelsModel.height = m.height
+			case viewModelType:
+				modelName := ""
+				if m.configPanelModel.config.Model != "" {
+					modelName = m.configPanelModel.config.Model
+				}
+				m.modelTypeModel = newModelTypeModel(modelName, m.cfg)
+				m.modelTypeModel.width = m.width
+				m.modelTypeModel.height = m.height
+			case viewSearch:
+				m.searchModel = newSearchModel(m.cfg, m.store)
+				m.searchModel.width = m.width
+				m.searchModel.height = m.height
+			case viewUninstall:
+				m.uninstallModel = newUninstallModel(m.cfg, m.store)
+				m.uninstallModel.width = m.width
+				m.uninstallModel.height = m.height
+			case viewServerManager:
+				m.serverManagerModel = newServerManagerModel(m.servers, m.width, m.height)
+			case viewNewServer:
+				m.serverNewModel = newServerNewModel(m.cfg, m.store, m.servers)
+				m.serverNewModel.width = m.width
+				m.serverNewModel.height = m.height
+			}
+			return m, nil
+		}
+
+		// Handle ctrl+c globally
+		if msg.String() == "ctrl+c" {
+			m.servers.StopAll()
+			return m, tea.Quit
+		}
+
+		// Handle 'q' key - skip for views with text input
 		if m.state != viewSearch && m.state != viewConfig && m.state != viewStorageConfig {
-			switch msg.String() {
-			case "ctrl+c":
-				m.servers.StopAll()
-				return m, tea.Quit
-			case "q":
+			if msg.String() == "q" {
 				if m.state == viewMenu {
+					// On home page - quit application
 					m.servers.StopAll()
 					return m, tea.Quit
 				}
-				// Return to menu from other views
+				// On any other page - return to home page
+				m.history = []viewState{} // Clear history
 				m.state = viewMenu
 				m.menuModel = newMenuModel(m.cfg, m.store)
+				m.menuModel.width = m.width
+				m.menuModel.height = m.height
+				m.menuModel.serverCount = m.servers.Count()
 				return m, nil
 			}
-		} else if msg.String() == "ctrl+c" {
-			m.servers.StopAll()
-			return m, tea.Quit
 		}
 
 	case tea.WindowSizeMsg:
@@ -121,6 +189,7 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(cmds...)
 
 	case openTemplatesMsg:
+		m.history = pushHistory(m.history, m.state)
 		m.state = viewTemplates
 		m.templatesModel = newTemplatesModel(m.cfg, m.store)
 		m.templatesModel.width = m.width
@@ -128,6 +197,7 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case openModelsMsg:
+		m.history = pushHistory(m.history, m.state)
 		m.state = viewModels
 		m.modelsModel = newModelsModel(m.cfg, m.store)
 		m.modelsModel.width = m.width
@@ -135,6 +205,7 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case openModelTypeMsg:
+		m.history = pushHistory(m.history, m.state)
 		m.state = viewModelType
 		m.modelTypeModel = newModelTypeModel(msg.model, m.cfg)
 		m.modelTypeModel.width = m.width
@@ -142,6 +213,7 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case openConfigPanelMsg:
+		m.history = pushHistory(m.history, m.state)
 		m.state = viewConfig
 		m.configPanelModel = newConfigPanelModel(msg.config, m.cfg, m.servers)
 		m.configPanelModel.width = m.width
@@ -149,11 +221,13 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case openServerManagerMsg:
+		m.history = pushHistory(m.history, m.state)
 		m.state = viewServerManager
 		m.serverManagerModel = newServerManagerModel(m.servers, m.width, m.height)
 		return m, nil
 
 	case openStorageConfigMsg:
+		m.history = pushHistory(m.history, m.state)
 		m.state = viewStorageConfig
 		m.storageModel = newStorageModel(m.cfg)
 		m.storageModel.width = m.width
@@ -162,6 +236,7 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case serverStartedMsg:
 		// Server started, go to server manager
+		m.history = pushHistory(m.history, m.state)
 		m.state = viewServerManager
 		m.serverManagerModel = newServerManagerModel(m.servers, m.width, m.height)
 		m.serverManagerModel.selectedPort = msg.port
@@ -170,12 +245,17 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case configSavedMsg:
 		m.cfg = msg.config
 		m.store = model.NewStore(m.cfg.ModelDir)
+		m.history = []viewState{} // Clear history when returning to menu
 		m.state = viewMenu
 		m.menuModel = newMenuModel(m.cfg, m.store)
+		m.menuModel.width = m.width
+		m.menuModel.height = m.height
+		m.menuModel.serverCount = m.servers.Count()
 		return m, nil
 
 	case goBackMsg:
-		// Go back to menu
+		// Go back to menu (clear history)
+		m.history = []viewState{}
 		m.state = viewMenu
 		m.menuModel = newMenuModel(m.cfg, m.store)
 		m.menuModel.width = m.width
@@ -184,6 +264,7 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case openInstallMsg:
+		m.history = pushHistory(m.history, m.state)
 		m.state = viewSearch
 		m.searchModel = newSearchModel(m.cfg, m.store)
 		m.searchModel.width = m.width
@@ -191,6 +272,7 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.searchModel.Init()
 
 	case openUninstallMsg:
+		m.history = pushHistory(m.history, m.state)
 		m.state = viewUninstall
 		m.uninstallModel = newUninstallModel(m.cfg, m.store)
 		m.uninstallModel.width = m.width
@@ -198,6 +280,7 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.uninstallModel.Init()
 
 	case openDetailsMsg:
+		m.history = pushHistory(m.history, m.state)
 		m.state = viewDetails
 		m.detailsModel = newDetailsModel(m.cfg, m.store, msg.model)
 		m.detailsModel.width = m.width
@@ -205,6 +288,7 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case openNewServerMsg:
+		m.history = pushHistory(m.history, m.state)
 		m.state = viewNewServer
 		m.serverNewModel = newServerNewModel(m.cfg, m.store, m.servers)
 		m.serverNewModel.width = m.width
@@ -218,6 +302,7 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cfg.ModelPath = m.cfg.ModelDir + "/" + msg.model
 		cfg.Type = msg.modelType
 		cfg.Port = msg.port
+		m.history = pushHistory(m.history, m.state)
 		m.state = viewConfig
 		m.configPanelModel = newConfigPanelModel(cfg, m.cfg, m.servers)
 		m.configPanelModel.width = m.width

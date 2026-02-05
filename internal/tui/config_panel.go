@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -21,6 +22,7 @@ const (
 // Control actions (inline above panels)
 const (
 	actionRun = iota
+	actionPort
 	actionTrustToggle
 	actionCancel
 )
@@ -164,7 +166,7 @@ func (m configPanelModel) Update(msg tea.Msg) (configPanelModel, tea.Cmd) {
 			}
 			switch m.focusedPanel {
 			case panelActionBar:
-				if m.controlSelected < 2 {
+				if m.controlSelected < actionCancel {
 					m.controlSelected++
 				}
 			case panelOptions:
@@ -210,18 +212,26 @@ func (m configPanelModel) Update(msg tea.Msg) (configPanelModel, tea.Cmd) {
 		case "enter":
 			return m.handleEnter()
 		case "tab":
-			// Tab cycles: ActionBar (Run) -> Col1 -> ActionBar (Run)
+			// Tab cycles: Run -> Port -> Options -> Run
 			if m.focusedPanel == panelActionBar {
-				m.focusedPanel = panelOptions
+				// Move within action bar or to options
+				if m.controlSelected < actionCancel {
+					m.controlSelected++
+				} else {
+					m.focusedPanel = panelOptions
+				}
 			} else {
+				// From options back to Run button
 				m.focusedPanel = panelActionBar
-				m.controlSelected = 0
+				m.controlSelected = actionRun
 			}
 		case "shift+tab":
-			// Shift+Tab reverse: Col1 -> ActionBar (Run) -> Col1
+			// Shift+Tab reverse: Options -> Port -> Run -> Options
 			if m.focusedPanel == panelOptions || m.focusedPanel == panelSetup {
 				m.focusedPanel = panelActionBar
-				m.controlSelected = 0
+				m.controlSelected = actionCancel
+			} else if m.controlSelected > actionRun {
+				m.controlSelected--
 			} else {
 				m.focusedPanel = panelOptions
 			}
@@ -229,9 +239,8 @@ func (m configPanelModel) Update(msg tea.Msg) (configPanelModel, tea.Cmd) {
 			if m.editingValue {
 				m.editingValue = false
 				m.editBuffer = ""
-			} else {
-				return m, func() tea.Msg { return goBackMsg{} }
 			}
+			// Don't handle ESC when not editing - let app.go global handler use history
 		case "backspace":
 			if m.editingValue && len(m.editBuffer) > 0 {
 				m.editBuffer = m.editBuffer[:len(m.editBuffer)-1]
@@ -250,6 +259,7 @@ func (m *configPanelModel) handleEnter() (configPanelModel, tea.Cmd) {
 	case panelActionBar:
 		switch m.controlSelected {
 		case actionRun:
+			// Run button just runs the server with current port
 			// Auto-increment port if in use
 			if m.servers.IsPortInUse(m.config.Port) {
 				m.config.Port = m.servers.NextAvailablePort(m.config.Port)
@@ -260,6 +270,23 @@ func (m *configPanelModel) handleEnter() (configPanelModel, tea.Cmd) {
 			}
 			return *m, func() tea.Msg {
 				return serverStartedMsg{port: m.config.Port}
+			}
+		case actionPort:
+			// Port field - toggle editing mode
+			if !m.editingValue {
+				// Enter edit mode
+				m.editingValue = true
+				m.editBuffer = fmt.Sprintf("%d", m.config.Port)
+			} else {
+				// Save edited port
+				if port, err := strconv.Atoi(m.editBuffer); err == nil && port > 0 && port <= 65535 {
+					m.config.Port = port
+					m.editingValue = false
+					m.editBuffer = ""
+				} else {
+					// Invalid port, keep editing
+					return *m, nil
+				}
 			}
 		case actionTrustToggle:
 			m.config.TrustRemoteCode = !m.config.TrustRemoteCode
@@ -461,8 +488,16 @@ func wrapText(text string, maxWidth int) []string {
 }
 
 func (m configPanelModel) renderActionBar() string {
-	// Show port next to Run button
-	runLabel := fmt.Sprintf("▶ Run :%d", m.config.Port)
+	// Separate Run button and Port field
+	runLabel := "▶ Run"
+	
+	var portLabel string
+	if m.editingValue && m.focusedPanel == panelActionBar && m.controlSelected == actionPort {
+		// Show editable port when in edit mode
+		portLabel = fmt.Sprintf("Port: %s_", m.editBuffer)
+	} else {
+		portLabel = fmt.Sprintf("Port: %d", m.config.Port)
+	}
 	
 	trustLabel := "🔐 Trust: "
 	if m.config.TrustRemoteCode {
@@ -471,7 +506,7 @@ func (m configPanelModel) renderActionBar() string {
 		trustLabel += "off"
 	}
 	
-	controls := []string{runLabel, trustLabel, "✖ Cancel"}
+	controls := []string{runLabel, portLabel, trustLabel, "✖ Cancel"}
 	
 	var parts []string
 	for i, ctrl := range controls {
