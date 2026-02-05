@@ -150,6 +150,10 @@ func (m searchModel) Update(msg tea.Msg) (searchModel, tea.Cmd) {
 
 		// Normal mode
 		switch msg.String() {
+		case "q":
+			// Navigate to homepage
+			return m, func() tea.Msg { return goBackMsg{} }
+		
 		case "?", "/":
 			// Enter filter mode
 			m.filtering = true
@@ -472,8 +476,9 @@ func (m searchModel) View() string {
 		activeBullet := lipgloss.NewStyle().Foreground(lipgloss.Color("#7D56F4")).Bold(true)
 		inactiveBullet := statusMutedStyle
 
-		maxBullets := 9
+		maxBullets := 30
 		if totalPages <= maxBullets {
+			// Show all dots if we have 25 or fewer pages
 			for p := 0; p < totalPages; p++ {
 				if p == m.currentPage {
 					pagination.WriteString(activeBullet.Render("●"))
@@ -485,13 +490,25 @@ func (m searchModel) View() string {
 				}
 			}
 		} else {
-			// Abbreviated pagination for many pages
+			// Abbreviated pagination for many pages (>25)
+			// Show: ○ ... ○ ● ○ ... ○
+			if m.currentPage > 1 {
+				pagination.WriteString(inactiveBullet.Render("○ ... "))
+			} else if m.currentPage == 1 {
+				pagination.WriteString(inactiveBullet.Render("○ "))
+			}
+			
+			// Show current and adjacent pages
 			if m.currentPage > 0 {
 				pagination.WriteString(inactiveBullet.Render("○ "))
 			}
 			pagination.WriteString(activeBullet.Render("●"))
 			if m.currentPage < totalPages-1 {
 				pagination.WriteString(inactiveBullet.Render(" ○"))
+			}
+			
+			if m.currentPage < totalPages-2 {
+				pagination.WriteString(inactiveBullet.Render(" ... ○"))
 			}
 		}
 
@@ -508,7 +525,7 @@ func (m searchModel) View() string {
 	} else if m.filtering {
 		helpText = "Type to filter • Enter confirm • Esc clear"
 	} else {
-		helpText = "Tab source • ←/→ page • ↑/↓ select • ?/filter • i install • o browser • Esc back"
+		helpText = "Tab source • ←/→ page • ↑/↓ select • ?/filter • i install • o browser • q home • Esc back"
 	}
 	b.WriteString("\n" + helpStyle.Render(helpText))
 
