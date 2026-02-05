@@ -24,7 +24,7 @@ type serverManagerModel struct {
 func newServerManagerModel(servers *server.Manager, width, height int) serverManagerModel {
 	// Calculate proper viewport dimensions to prevent crash
 	contentWidth := width - 4
-	logPanelHeight := height - 8 - 7  // control height (8) + title/borders/footer (7)
+	logPanelHeight := height - 8 - 10  // control height (8) + title/borders/footer/leading newlines (10)
 	if logPanelHeight < 5 {
 		logPanelHeight = 5
 	}
@@ -169,6 +169,9 @@ func (m serverManagerModel) View() string {
 	contentWidth := m.width - 4
 	var b strings.Builder
 
+	// Add leading newlines to prevent content from being cut off at top
+	b.WriteString("\n\n\n")
+
 	// Title line at top - appStyle provides padding
 	if serverCount > 0 {
 		b.WriteString(subtitleStyle.Render(fmt.Sprintf("Server Manager (%d running)", serverCount)))
@@ -218,7 +221,7 @@ func (m serverManagerModel) View() string {
 	// Each control panel rendered width = colWidth + 2 (border), so total = leftColWidth + rightColWidth + 4
 	// Log panel rendered width = logPanelWidth + 2 (border), so we need logPanelWidth + 2 = leftColWidth + rightColWidth + 4
 	logPanelWidth := leftColWidth + rightColWidth + 2
-	logPanelHeight := m.height - controlPanelHeight - 7  // Account for title, borders, footer
+	logPanelHeight := m.height - controlPanelHeight - 10  // Account for title, borders, footer, leading newlines
 	if logPanelHeight < 5 {
 		logPanelHeight = 5  // Minimum height to prevent crash
 	}
