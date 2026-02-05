@@ -99,8 +99,8 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		// Handle ESC globally for ALL views - navigate back using history
-		if msg.String() == "esc" && m.state != viewMenu {
+		// Handle ESC globally for ALL views EXCEPT viewSearch (which handles its own ESC for search/filter)
+		if msg.String() == "esc" && m.state != viewMenu && m.state != viewSearch {
 			prevState, newHistory := popHistory(m.history)
 			m.history = newHistory
 			m.state = prevState

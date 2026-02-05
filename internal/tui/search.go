@@ -22,6 +22,12 @@ var hfSources = []string{
 	"All Models",
 }
 
+// Loading modes
+const (
+	loadModeAll    = "all"    // Load all models from source
+	loadModeSearch = "search" // Live search from API
+)
+
 // searchModel handles HuggingFace model search/install with pre-load + filter UX
 type searchModel struct {
 	cfg          *config.Config
@@ -35,9 +41,12 @@ type searchModel struct {
 	cursor       int
 	currentPage  int
 	filter       string
-	filtering    bool // In filter input mode
+	filtering    bool   // In filter input mode
 	loading      bool
-	loadedSource int  // Track which source is loaded
+	loadedSource int    // Track which source is loaded
+	loadingMode  string // "all" or "search"
+	searchQuery  string // Search query for live search mode
+	searching    bool   // In search input mode
 	err          error
 	installing   bool
 	installMsg   string
@@ -54,14 +63,20 @@ func newSearchModel(cfg *config.Config, store *model.Store) searchModel {
 		store:        store,
 		hfClient:     hf.NewClient(),
 		sourceIdx:    0,
-		loadedSource: -1, // Not loaded yet
+		loadedSource: -1,            // Not loaded yet
+		loadingMode:  loadModeAll,   // Default to All mode (load models on startup)
+		loading:      true,          // Start in loading state
 		spinner:      s,
 	}
 }
 
 func (m searchModel) Init() tea.Cmd {
-	// Auto-load models from first source on init
-	return tea.Batch(m.spinner.Tick, m.loadModels(0))
+	// In search mode, don't auto-load - wait for user search query
+	if m.loadingMode == loadModeSearch {
+		return m.spinner.Tick
+	}
+	// In all mode (default), auto-load models from first source
+	return tea.Batch(m.spinner.Tick, m.loadModels(0, ""))
 }
 
 // Message types for search
@@ -121,6 +136,41 @@ func (m searchModel) Update(msg tea.Msg) (searchModel, tea.Cmd) {
 			return m, nil
 		}
 
+		// Search input mode (for live search)
+		if m.searching {
+			switch msg.String() {
+			case "enter":
+				m.searching = false
+				if m.searchQuery != "" {
+					m.loading = true
+					m.err = nil
+					return m, tea.Batch(m.spinner.Tick, m.loadModels(m.sourceIdx, m.searchQuery))
+				}
+				return m, nil
+			case "esc":
+				// ESC clears search and switches to All mode
+				m.searching = false
+				m.searchQuery = ""
+				if m.loadingMode == loadModeSearch {
+					m.loadingMode = loadModeAll
+					m.loading = true
+					m.err = nil
+					return m, tea.Batch(m.spinner.Tick, m.loadModels(m.sourceIdx, ""))
+				}
+				return m, nil
+			case "backspace":
+				if len(m.searchQuery) > 0 {
+					m.searchQuery = m.searchQuery[:len(m.searchQuery)-1]
+				}
+				return m, nil
+			default:
+				if len(msg.String()) == 1 {
+					m.searchQuery += msg.String()
+				}
+				return m, nil
+			}
+		}
+
 		// Filter input mode
 		if m.filtering {
 			switch msg.String() {
@@ -129,6 +179,7 @@ func (m searchModel) Update(msg tea.Msg) (searchModel, tea.Cmd) {
 				m.cursor = 0
 				return m, nil
 			case "esc":
+				// ESC clears filter and shows all models
 				m.filtering = false
 				m.filter = ""
 				m.applyFilter()
@@ -153,19 +204,60 @@ func (m searchModel) Update(msg tea.Msg) (searchModel, tea.Cmd) {
 		case "q":
 			// Navigate to homepage
 			return m, func() tea.Msg { return goBackMsg{} }
-		
-		case "?", "/":
-			// Enter filter mode
-			m.filtering = true
+
+		case "a":
+			// Switch to "All models" mode
+			if m.loadingMode != loadModeAll {
+				m.loadingMode = loadModeAll
+				m.searchQuery = ""
+				m.allModels = nil
+				m.filtered = nil
+				m.cursor = 0
+				m.currentPage = 0
+				m.loading = true
+				m.err = nil
+				return m, tea.Batch(m.spinner.Tick, m.loadModels(m.sourceIdx, ""))
+			}
+
+		case "s":
+			// Switch to "Search" mode
+			if m.loadingMode != loadModeSearch {
+				m.loadingMode = loadModeSearch
+				m.allModels = nil
+				m.filtered = nil
+				m.cursor = 0
+				m.currentPage = 0
+				m.loadedSource = -1
+				m.searching = true // Open search input
+			} else {
+				// Already in search mode, open search input
+				m.searching = true
+			}
+			return m, nil
+
+		case "?", "/", "f":
+			// Enter filter mode (only if we have loaded models)
+			if len(m.allModels) > 0 {
+				m.filtering = true
+			}
 			return m, nil
 
 		case "esc":
+			// In search mode with results: ESC clears search and switches to All mode
+			if m.loadingMode == loadModeSearch {
+				m.loadingMode = loadModeAll
+				m.searchQuery = ""
+				m.loading = true
+				m.err = nil
+				return m, tea.Batch(m.spinner.Tick, m.loadModels(m.sourceIdx, ""))
+			}
+			// In filter mode with active filter: clear filter
 			if m.filter != "" {
 				m.filter = ""
 				m.applyFilter()
 				return m, nil
 			}
-			return m, func() tea.Msg { return goBackMsg{} }
+			return m, nil
 
 		case "up", "k":
 			if m.cursor > 0 {
@@ -197,10 +289,19 @@ func (m searchModel) Update(msg tea.Msg) (searchModel, tea.Cmd) {
 		case "tab":
 			// Switch source
 			m.sourceIdx = (m.sourceIdx + 1) % len(hfSources)
-			if m.sourceIdx != m.loadedSource {
+			// In all mode, reload models from new source
+			if m.loadingMode == loadModeAll && m.sourceIdx != m.loadedSource {
 				m.loading = true
 				m.err = nil
-				return m, tea.Batch(m.spinner.Tick, m.loadModels(m.sourceIdx))
+				return m, tea.Batch(m.spinner.Tick, m.loadModels(m.sourceIdx, ""))
+			}
+			// In search mode, clear results and let user search again
+			if m.loadingMode == loadModeSearch {
+				m.allModels = nil
+				m.filtered = nil
+				m.cursor = 0
+				m.currentPage = 0
+				m.loadedSource = -1
 			}
 
 		case "enter", "i":
@@ -232,7 +333,7 @@ func (m searchModel) Update(msg tea.Msg) (searchModel, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
-func (m searchModel) loadModels(sourceIdx int) tea.Cmd {
+func (m searchModel) loadModels(sourceIdx int, searchQuery string) tea.Cmd {
 	return func() tea.Msg {
 		author := ""
 		limit := 100
@@ -244,7 +345,7 @@ func (m searchModel) loadModels(sourceIdx int) tea.Cmd {
 			limit = 500
 		}
 
-		models, err := m.hfClient.Search("", author, limit)
+		models, err := m.hfClient.Search(searchQuery, author, limit)
 		if err != nil {
 			return loadErrorMsg{err: err}
 		}
@@ -269,9 +370,9 @@ func (m *searchModel) applyFilter() {
 }
 
 func (m searchModel) getItemsPerPage() int {
-	perPage := m.height - 14
+	perPage := m.height - 18 // Increased from 14 to leave room for logo header
 	if perPage < 5 {
-		perPage = 10
+		perPage = 5
 	}
 	return perPage
 }
@@ -343,11 +444,11 @@ func (m searchModel) View() string {
 	contentWidth := getContentWidth(m.width)
 	var b strings.Builder
 
-	// Header (80% width)
+	// Header (80% width) - same spacing as menu.go
 	b.WriteString(renderHeader(version, m.width))
-	b.WriteString("\n\n")
+	b.WriteString("\n\n\n")
 
-	// Source tabs
+	// Source tabs + mode indicators
 	var tabsBuilder strings.Builder
 	for i, src := range hfSources {
 		if i == m.sourceIdx {
@@ -356,18 +457,49 @@ func (m searchModel) View() string {
 			tabsBuilder.WriteString(inactiveTabStyle.Render(src))
 		}
 	}
-	b.WriteString(tabBarStyle.Render(tabsBuilder.String()))
-	b.WriteString("\n\n")
-
-	// Filter input
-	if m.filtering {
-		searchStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#7D56F4")).Bold(true)
-		b.WriteString(searchStyle.Render("🔍 Filter: ") + m.filter + "█")
-		b.WriteString("\n")
-	} else if m.filter != "" {
-		searchStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#04B575"))
-		b.WriteString(searchStyle.Render("🔍 \""+m.filter+"\"") + statusMutedStyle.Render(fmt.Sprintf(" (%d results)", len(m.filtered))) + "\n")
+	// Add mode indicators: 📁 (All) and 🔍 (Search)
+	tabsBuilder.WriteString("  ")
+	if m.loadingMode == loadModeAll {
+		tabsBuilder.WriteString(activeTabStyle.Render("📁"))
+		tabsBuilder.WriteString(inactiveTabStyle.Render("🔍"))
+	} else {
+		tabsBuilder.WriteString(inactiveTabStyle.Render("📁"))
+		tabsBuilder.WriteString(activeTabStyle.Render("🔍"))
 	}
+	b.WriteString(tabBarStyle.Render(tabsBuilder.String()))
+	b.WriteString("\n")
+
+	// Search/filter input area - ALWAYS reserve one line for layout stability
+	var inputLine strings.Builder
+	
+	// Search part
+	if m.searching {
+		searchStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#04B575")).Bold(true)
+		inputLine.WriteString(searchStyle.Render("🔎 Search: ") + m.searchQuery + "█")
+	} else if m.loadingMode == loadModeSearch && m.searchQuery != "" {
+		searchStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#04B575"))
+		inputLine.WriteString(searchStyle.Render("🔎 \"" + m.searchQuery + "\""))
+	}
+	
+	// Add separator if both search and filter are visible
+	if inputLine.Len() > 0 && (m.filtering || m.filter != "") {
+		inputLine.WriteString("  ")
+	}
+	
+	// Filter part
+	if m.filtering {
+		filterStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#7D56F4")).Bold(true)
+		inputLine.WriteString(filterStyle.Render("🔍 Filter: ") + m.filter + "█")
+	} else if m.filter != "" {
+		filterStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#7D56F4"))
+		inputLine.WriteString(filterStyle.Render("🔍 \"" + m.filter + "\""))
+		inputLine.WriteString(statusMutedStyle.Render(fmt.Sprintf(" (%d)", len(m.filtered))))
+	}
+	
+	// Always output a fixed line (empty or with content) for layout stability
+	b.WriteString("\n") // Newline before search/filter line
+	b.WriteString(inputLine.String())
+	b.WriteString("\n\n")
 
 	// Column headers - adjusted for 80% width
 	nameWidth := contentWidth - 20
@@ -400,7 +532,16 @@ func (m searchModel) View() string {
 			b.WriteString("\n")
 		}
 	} else if len(m.filtered) == 0 {
-		b.WriteString(statusMutedStyle.Render("  No models found"))
+		// Different message based on mode
+		var emptyMsg string
+		if m.loadingMode == loadModeSearch && m.searchQuery == "" {
+			emptyMsg = "  Press 's' to enter search query"
+		} else if m.loadingMode == loadModeSearch {
+			emptyMsg = "  No models found for \"" + m.searchQuery + "\""
+		} else {
+			emptyMsg = "  No models found"
+		}
+		b.WriteString(statusMutedStyle.Render(emptyMsg))
 		b.WriteString("\n")
 		// Pad to maintain consistent height
 		for i := 1; i < perPage; i++ {
@@ -522,10 +663,12 @@ func (m searchModel) View() string {
 	var helpText string
 	if m.installing {
 		helpText = "Installing... please wait"
+	} else if m.searching {
+		helpText = "Type to search • Enter fetch • Esc clear"
 	} else if m.filtering {
 		helpText = "Type to filter • Enter confirm • Esc clear"
 	} else {
-		helpText = "Tab source • ←/→ page • ↑/↓ select • ?/filter • i install • o browser • q home • Esc back"
+		helpText = "Tab source • a All • s Search • f filter • ←/→ page • ↑/↓ select • i install • q back"
 	}
 	b.WriteString("\n" + helpStyle.Render(helpText))
 
