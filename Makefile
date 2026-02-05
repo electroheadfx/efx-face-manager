@@ -1,16 +1,18 @@
-VERSION := 1.0.0
+VERSION := 2.0.0
 BINARY := efx-face
 BUILD_DIR := bin
+LDFLAGS := -ldflags "-s -w -X main.version=$(VERSION)"
 
-.PHONY: build install clean build-all run lint
+.PHONY: build install clean build-all build-mac build-linux build-windows run lint test dev help
 
-# Default build
+# Default build (current platform)
 build:
-	go build -ldflags "-X main.version=$(VERSION)" -o $(BUILD_DIR)/$(BINARY) ./cmd/efx-face
+	@mkdir -p $(BUILD_DIR)
+	go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY) ./cmd/efx-face
 
 # Install to GOPATH/bin
 install:
-	go install -ldflags "-X main.version=$(VERSION)" ./cmd/efx-face
+	go install $(LDFLAGS) ./cmd/efx-face
 
 # Run the TUI
 run: build
@@ -20,13 +22,42 @@ run: build
 clean:
 	rm -rf $(BUILD_DIR)/
 
-# Cross-compilation for multi-platform
-build-all: clean
+# ==========================================
+# Cross-compilation for all platforms
+# ==========================================
+
+# Build all platforms
+build-all: clean build-mac build-linux build-windows
+	@echo "\n✅ All builds completed in $(BUILD_DIR)/"
+	@ls -la $(BUILD_DIR)/
+
+# macOS builds (ARM64 for M1/M2/M3/M4, AMD64 for Intel)
+build-mac:
 	@mkdir -p $(BUILD_DIR)
-	GOOS=darwin GOARCH=arm64 go build -ldflags "-X main.version=$(VERSION)" -o $(BUILD_DIR)/$(BINARY)-darwin-arm64 ./cmd/efx-face
-	GOOS=darwin GOARCH=amd64 go build -ldflags "-X main.version=$(VERSION)" -o $(BUILD_DIR)/$(BINARY)-darwin-amd64 ./cmd/efx-face
-	GOOS=linux GOARCH=amd64 go build -ldflags "-X main.version=$(VERSION)" -o $(BUILD_DIR)/$(BINARY)-linux-amd64 ./cmd/efx-face
-	GOOS=linux GOARCH=arm64 go build -ldflags "-X main.version=$(VERSION)" -o $(BUILD_DIR)/$(BINARY)-linux-arm64 ./cmd/efx-face
+	@echo "Building for macOS..."
+	GOOS=darwin GOARCH=arm64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY)-darwin-arm64 ./cmd/efx-face
+	GOOS=darwin GOARCH=amd64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY)-darwin-amd64 ./cmd/efx-face
+	@echo "✓ macOS builds done"
+
+# Linux builds (ARM64 and AMD64)
+build-linux:
+	@mkdir -p $(BUILD_DIR)
+	@echo "Building for Linux..."
+	GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY)-linux-amd64 ./cmd/efx-face
+	GOOS=linux GOARCH=arm64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY)-linux-arm64 ./cmd/efx-face
+	@echo "✓ Linux builds done"
+
+# Windows builds (ARM64 and AMD64)
+build-windows:
+	@mkdir -p $(BUILD_DIR)
+	@echo "Building for Windows..."
+	GOOS=windows GOARCH=amd64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY)-windows-amd64.exe ./cmd/efx-face
+	GOOS=windows GOARCH=arm64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY)-windows-arm64.exe ./cmd/efx-face
+	@echo "✓ Windows builds done"
+
+# ==========================================
+# Development tools
+# ==========================================
 
 # Lint
 lint:
@@ -50,15 +81,27 @@ dev:
 
 # Show help
 help:
-	@echo "efx-face-manager Makefile"
+	@echo "efx-face v$(VERSION) - Makefile"
 	@echo ""
-	@echo "Usage:"
-	@echo "  make build      - Build the binary"
-	@echo "  make install    - Install to GOPATH/bin"
-	@echo "  make run        - Build and run"
-	@echo "  make clean      - Remove build artifacts"
-	@echo "  make build-all  - Build for all platforms"
-	@echo "  make lint       - Run linter"
-	@echo "  make test       - Run tests"
-	@echo "  make dev        - Run with live reload (requires air)"
-	@echo "  make help       - Show this help"
+	@echo "Build Commands:"
+	@echo "  make build         - Build for current platform"
+	@echo "  make build-all     - Build for all platforms (Mac/Linux/Windows × ARM/AMD)"
+	@echo "  make build-mac     - Build for macOS (ARM64 + AMD64)"
+	@echo "  make build-linux   - Build for Linux (ARM64 + AMD64)"
+	@echo "  make build-windows - Build for Windows (ARM64 + AMD64)"
+	@echo ""
+	@echo "Development Commands:"
+	@echo "  make run           - Build and run"
+	@echo "  make install       - Install to GOPATH/bin"
+	@echo "  make clean         - Remove build artifacts"
+	@echo "  make lint          - Run linter"
+	@echo "  make test          - Run tests"
+	@echo "  make dev           - Run with live reload (requires air)"
+	@echo ""
+	@echo "Output binaries:"
+	@echo "  $(BUILD_DIR)/$(BINARY)-darwin-arm64      (macOS Apple Silicon)"
+	@echo "  $(BUILD_DIR)/$(BINARY)-darwin-amd64      (macOS Intel)"
+	@echo "  $(BUILD_DIR)/$(BINARY)-linux-amd64       (Linux x86_64)"
+	@echo "  $(BUILD_DIR)/$(BINARY)-linux-arm64       (Linux ARM64)"
+	@echo "  $(BUILD_DIR)/$(BINARY)-windows-amd64.exe (Windows x86_64)"
+	@echo "  $(BUILD_DIR)/$(BINARY)-windows-arm64.exe (Windows ARM64)"

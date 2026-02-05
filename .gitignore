@@ -1,3 +1,8 @@
+# Build artifacts
+bin/
+*.exe
+
+# Development
 node_modules
 .DS_Store
 dist

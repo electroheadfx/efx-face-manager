@@ -1,467 +1,333 @@
-# efx-face-manager
+# efx-face
 
-```
-┌─┐┌─┐─┐ ┬   ┌─┐┌─┐┌─┐┌─┐
-├┤ ├┤ ┌┴┬┘───├┤ ├─┤│  ├┤ 
-└─┘└  ┴ └─   └  ┴ ┴└─┘└─┘
+![efx-face logo](./src/img/logo.png)
 
-MLX Hugging Face Manager
-by Laurent Marques
-```
+**Version 2.0.0** | A beautiful TUI for managing MLX models on Apple Silicon
 
-**Version: 0.1.13**
+Browse, install, and run MLX-optimized models from Hugging Face with an intuitive terminal interface built with [Bubbletea](https://github.com/charmbracelet/bubbletea) and [Lipgloss](https://github.com/charmbracelet/lipgloss).
 
-A terminal-based LLM model manager for Apple Silicon Macs. Browse, install, and run MLX-optimized models from Hugging Face with an intuitive TUI interface.
-
-## Demo
-
-![efx-face-manager Demo](./efx-face.gif)
-
-> 📹 Browse, search, install, and run MLX-optimized LLMs from Hugging Face
+---
 
 ## Features
 
 ### Core Features
-- **Browse Models** - Access 3000+ MLX models from Hugging Face with pagination
-- **Unified Search** - Search models directly via Hugging Face API with live filtering
-- **Model Details** - View downloads, likes, size, and more before installing
-- **Install Models** - Download and set up models with one click
-- **Run Models** - Launch models with MLX OpenAI Server
-- **Uninstall** - Clean removal of models and cache
-- **Multiple Sources** - Browse mlx-community, lmstudio-community, or all models
-- **Multi-Path Storage (v0.1.1)** - Flexible model storage with automatic fallback:
-  - **External Path**: `/Volumes/T7/mlx-server` (when drive is mounted)
-  - **Local Path**: `~/mlx-server` (fallback when external is unavailable)
-  - Auto-detection with External → Local fallback
-  - Path persistence across sessions via `~/.efx-face-manager.conf`
-  - Real-time status display (models count, availability)
+- **Browse Models** — Access 3000+ MLX models from Hugging Face with pagination
+- **Unified Search** — Search models directly via Hugging Face API with live filtering
+- **Model Details** — View downloads, likes, size, and metadata before installing
+- **Install Models** — Download and set up models with one click
+- **Run Models** — Launch models with MLX OpenAI Server
+- **Uninstall** — Clean removal of models and cache
+- **Multiple Sources** — Browse mlx-community, lmstudio-community, or all models
 
-### Advanced Configuration (v0.1.0)
-- **🎯 Preset Configurations** - Quick-launch with 6 model type presets:
-  - `lm` - Text-only language models
-  - `multimodal` - Vision, audio, and text processing
-  - `image-generation` - Qwen image generation (default: q16)
-  - `image-edit` - Qwen image editing (default: q16)
-  - `embeddings` - Text embeddings generation
-  - `whisper` - Audio transcription
+### Multi-Server Management
+- **Run Multiple Servers** — Launch several models on different ports simultaneously
+- **Real-time Logs** — View server output with scrollable viewport
+- **Server Switching** — Switch between running servers to view their logs
+- **Graceful Shutdown** — Stop individual servers or all at once
 
-- **⚙️ Interactive Configuration** - Single-page settings with live preview:
-  - Configure all parameters on one screen
-  - Direct editing by clicking parameter lines
-  - See current values while modifying
-  - Full control over quantization, LoRA, server settings
+### Configuration Options
+- **6 Model Type Presets**: `lm`, `multimodal`, `image-generation`, `image-edit`, `embeddings`, `whisper`
+- **Interactive Configuration** — Single-page settings with live preview
+- **Command Preview** — Review full command before execution
+- **Flexible Storage** — Configure external or local model storage paths
 
-- **🔧 Model-Type Specific Options**:
-  - **LM/Multimodal**: Context length, tool calling, parsers, chat templates
-  - **Image Generation**: Config name (flux/qwen), quantization (4/8/16), LoRA adapters
-  - **Image Edit**: Context-aware editing, quantization, LoRA support
-  - **Whisper**: Queue management, concurrency control
-  - **Embeddings**: Server configuration, memory optimization
+---
 
-- **📋 Command Preview** - Review full command before execution
-- **🔄 Modify & Re-run** - Edit presets, preview, and relaunch without restarting
+## How to Use
+
+### Home Screen
+
+![Home](./src/img/home.png)
+
+The **Home Screen** is your central hub for all operations:
+
+- **Run on Template** — Quick-launch popular models with pre-configured optimal settings
+- **Run an Installed Model** — Select any model you've downloaded and configure how to run it
+- **Install a New Model** — Browse and download models from Hugging Face
+- **Uninstall a Model** — Remove models you no longer need
+- **Settings** — Configure storage paths and preferences
+
+Use `↑/↓` to navigate, `Enter` to select, and `q` to quit.
+
+---
+
+### Running Models with Templates
+
+#### Step 1: Choose a Template
+
+![Choose a Template](./src/img/choose-a-template.png)
+
+Templates are **pre-configured model setups** optimized for specific use cases:
+
+- **GLM-4.7-Flash-8bit** — Fast Chinese/English language model with reasoning
+- **Qwen3-Coder-30B** — Optimized for coding tasks
+- **Qwen3-VL-8B-Thinking** — Vision-language multimodal model
+- **NVIDIA-Nemotron** — General purpose language model
+
+Select a template and press `Enter` to proceed to configuration.
+
+#### Step 2: Configure and Launch
+
+![Run a Template](./src/img/run-a-template.png)
+
+The **Configuration Panel** shows everything at a glance:
+
+**Left Column — Configure Options:**
+- Context length, tool parsers, reasoning parsers
+- Debug mode, trust remote code settings
+- Port, host, and log level
+
+**Right Column — Option Setup:**
+- Shows available choices for the selected option
+- Press `Enter` to edit a value
+- Changes update the command preview in real-time
+
+**Action Bar (top):**
+- `Run` — Launch the server with current settings
+- `Trust: off/on` — Quick toggle for trust_remote_code
+- `Cancel` — Return to previous screen
+
+Use `Tab` to switch between panels, `↑/↓` to navigate options.
+
+---
+
+### Running Installed Models
+
+#### Step 1: Choose a Model
+
+![Choose a Model](./src/img/choose-a-model.png)
+
+Browse all models installed in your storage directory:
+
+- Models are displayed with their full names
+- Use `↑/↓` to scroll through the list
+- Press `Enter` to select a model
+
+#### Step 2: Select Model Type
+
+![Set Template to Model](./src/img/set-a-template-to-model.png)
+
+Choose the **model type** that matches your use case:
+
+| Type | Description |
+|------|-------------|
+| `lm` | Text-only language models (default) |
+| `multimodal` | Vision, audio, and text processing |
+| `image-generation` | Image generation (Qwen, Flux) |
+| `image-edit` | Image editing capabilities |
+| `embeddings` | Text embeddings for RAG |
+| `whisper` | Audio transcription |
+
+Each type shows different configuration options in the next screen.
+
+---
+
+### Server Management
+
+#### Single Server View
+
+![Running Server](./src/img/running-server.png)
+
+When a server is running, the **Server Manager** displays:
+
+**Left Panel — Server Controls:**
+- List of running servers with model name, port, and type
+- Server details (host, uptime)
+- Actions: Stop server, Start new, Back to menu
+
+**Right Panel — Server Output:**
+- Real-time scrollable log output
+- Shows model loading progress, requests, and responses
+- Use `↑/↓` or `g/G` to scroll through logs
+
+**Shortcuts:**
+- `s` — Stop selected server
+- `n` — Start a new server
+- `c` — Clear logs
+- `m` — Return to main menu
+
+#### Multiple Servers
+
+![Running Servers](./src/img/running-servers.png)
+
+Run **multiple models simultaneously** on different ports:
+
+- Each server runs independently on its own port (8000, 8001, 8002...)
+- Select a server from the list to view its logs
+- Press `1-9` for quick server selection
+- `S` (shift+s) stops ALL running servers
+
+This is perfect for:
+- Running a coding model and a general model side by side
+- Testing different model configurations
+- Serving multiple model types (LLM + embeddings + whisper)
+
+---
+
+### Settings
+
+![Settings](./src/img/settings.png)
+
+Configure your **model storage location**:
+
+**Available Paths:**
+- **External** — `/Volumes/T7/mlx-server` (for external drives)
+- **Local** — `~/mlx-server` (always available)
+- **Auto-detect** — Automatically uses external if mounted, falls back to local
+
+The status shows:
+- ✓ Active with model count
+- ✓ Available (empty directory)
+- ✗ Not mounted (external drive disconnected)
+
+Settings are saved to `~/.efx-face-manager.conf` and persist across sessions.
+
+---
+
+### Uninstalling Models
+
+![Uninstall a Model](./src/img/uninstall-a-model.png)
+
+Remove models you no longer need:
+
+1. Select the model to uninstall
+2. Confirm the deletion
+3. Both the symlink AND cached files are removed
+
+This frees up disk space by cleaning the Hugging Face cache.
+
+---
+
+## Installation
+
+### Option 1: Download Pre-built Binary (Recommended)
+
+Download from [Releases](https://github.com/electroheadfx/efx-face-manager/releases):
+
+| Platform | Architecture | Binary |
+|----------|--------------|--------|
+| macOS | Apple Silicon (M1/M2/M3/M4) | `efx-face-darwin-arm64` |
+| macOS | Intel | `efx-face-darwin-amd64` |
+| Linux | x86_64 | `efx-face-linux-amd64` |
+| Linux | ARM64 | `efx-face-linux-arm64` |
+| Windows | x86_64 | `efx-face-windows-amd64.exe` |
+| Windows | ARM64 | `efx-face-windows-arm64.exe` |
+
+```bash
+# macOS/Linux
+chmod +x efx-face-darwin-arm64
+sudo mv efx-face-darwin-arm64 /usr/local/bin/efx-face
+efx-face
+```
+
+### Option 2: Build from Source
+
+```bash
+git clone https://github.com/electroheadfx/efx-face-manager.git
+cd efx-face-manager
+make build
+./bin/efx-face
+```
+
+### Option 3: Go Install
+
+```bash
+go install github.com/electroheadfx/efx-face-manager/cmd/efx-face@latest
+```
+
+---
 
 ## Prerequisites
 
-### 1. Install Homebrew (if not installed)
-```bash
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-```
+### MLX OpenAI Server
 
-### 2. Install gum (Terminal UI toolkit)
-```bash
-brew install gum
-```
-
-### 3. Install jq (JSON processor)
-```bash
-brew install jq
-```
-
-### 4. Install Hugging Face CLI
-```bash
-brew install huggingface-cli
-```
-
-### 5. Install MLX OpenAI Server (for running models)
-
-**Requirements:**
-- Python 3.11 or 3.12 (Python 3.13+ is not yet supported)
-- Use pyenv to manage Python versions if needed
-
-#### Installation Method: Using uv (Recommended)
+Required to run models. Install using uv (recommended):
 
 ```bash
-```bash
-
-
-# Set your preferred Python version
-pyenv global 3.12.8
-
-cd ~/Scripts/mlx-tools
-
-# Clone the mlx-openai-server repository
 git clone https://github.com/cubist38/mlx-openai-server.git
 cd mlx-openai-server
-
-# Create virtual environment (will use your pyenv Python 3.12.8)
-uv venv
-
-# Activate the environment
-source .venv/bin/activate
-
-# Install in development mode
+uv venv && source .venv/bin/activate
 uv pip install -e .
-
-# Install latest mlx-lm from GitHub if needed to update to last mlx-lm
-# uv pip install git+https://github.com/ml-explore/mlx-lm.git
-
 ```
-Then
-> add in your zshrc
+
+Add to `.zshrc`:
+
 ```bash
 mlx-openai-server() {
     local original_dir="$PWD"
-    cd ~/Scripts/mlx-tools/mlx-openai-server
+    cd ~/path/to/mlx-openai-server
     source .venv/bin/activate
     command mlx-openai-server "$@"
     cd "$original_dir"
 }
 ```
 
-**Verify installation:**
+Or use pipx: `pipx install mlx-openai-server`
+
+### Hugging Face CLI
+
 ```bash
-# see mlx-openai-server doc here: https://github.com/cubist38/mlx-openai-server
-mlx-openai-server --version
-# Should show version 1.4.2 or higher for full feature support
-
-# Launch models from this environment
-mlx-openai-server launch --model-path /path/to/model --model-type lm
+brew install huggingface-cli
+# Optional: hf auth login
 ```
 
-> **Note:** Version 1.4.2+ is required for image-generation, image-edit, embeddings, and whisper model types.
-> See: https://github.com/cubist38/mlx-openai-server
+---
 
-### 6. Login to Hugging Face (optional, for private models)
-```bash
-hf auth login
-```
-
-## Installation
-
-### Option 1: Clone the repository
-```bash
-git clone https://github.com/electroheadfx/efx-face-manager.git
-cd efx-face-manager
-chmod +x efx-face-manager.sh
-```
-
-### Option 2: Direct download
-```bash
-curl -O https://raw.githubusercontent.com/electroheadfx/efx-face-manager/main/efx-face-manager.sh
-chmod +x efx-face-manager.sh
-```
-
-### Option 3: Add to PATH
-```bash
-# Add to your .zshrc or .bashrc
-export PATH="$PATH:/path/to/efx-face-manager"
-```
-
-## Configuration
-
-### Model Storage Path
-
-The application automatically manages model storage paths with smart defaults:
-
-**Default Behavior:**
-- First launch: Auto-detects External (`/Volumes/T7/mlx-server`) if drive mounted, else Local (`~/mlx-server`)
-- Subsequent launches: Uses saved preference from `~/.efx-face-manager.conf`
-
-**Manual Configuration:**
-Use the **Configure Model Storage Path** menu option to:
-- Switch between External, Local, or Legacy paths
-- View real-time status and model counts
-- Enable auto-detection for automatic fallback
-
-**Available Paths:**
-```bash
-# External (recommended for large collections)
-/Volumes/T7/mlx-server
-
-# Local (always available)
-~/mlx-server
-```
-
-### Environment Variables (Optional)
-
-You can override the path temporarily:
-```bash
-# Override for single session
-export MODEL_DIR="/custom/path"
-./efx-face-manager.sh
-```
-
-> **Note:** Manual `MODEL_DIR` exports override the saved configuration. Use the in-app menu for persistent changes.
-
-## Usage
-
-### Display version
-```bash
-./efx-face-manager.sh --version
-# or
-./efx-face-manager.sh -v
-```
-
-### Run the manager
-```bash
-./efx-face-manager.sh
-```
-
-### Main Menu Options
-
-| Option | Description |
-|--------|-------------|
-| **⚡ Run LM on Template** | Fast-launch predefined language model templates with optimized configurations |
-| **Run an Installed LLM** | Select and launch a model with preset configurations or custom settings |
-| **Install a New Hugging Face LLM** | Browse and download models from Hugging Face |
-| **Uninstall an LLM** | Remove installed models and clean cache |
-| **Configure Model Storage Path** | Switch between External, Local, or Legacy storage paths |
-| **Exit** | Quit the application |
-
-### Template Models (v0.1.10)
-
-#### Fast Launch Predefined Templates
-
-Select **⚡ Run LM on Template** from the main menu to quickly launch popular language models with optimized configurations:
-
-**Available Templates:**
-- **Qwen3-Coder-30B-A3B-Instruct-8bit** - Optimized for coding tasks
-- **NVIDIA-Nemotron-3-Nano-30B-A3B-MLX-8Bit** - General purpose language model
-- **GLM-4.7-Flash-8bit** - Fast inference Chinese/English language model
-- **Qwen3-VL-8B-Thinking-8bit** - Vision-language multimodal model with thinking capabilities
-
-**Features:**
-- One-click launch with pre-configured optimal settings
-- No manual configuration required
-- Uses proven parameter combinations for best performance
-- Supports all standard mlx-openai-server launch options
-
-**Template Configuration:**
-Each template comes with vendor-recommended settings:
-- Appropriate tool-call parsers and message converters
-- Optimized quantization levels
-- Pre-set server configurations (port 8000, host 0.0.0.0)
-- Model-type specific optimizations
-
-> **Note:** Templates require the corresponding model to be installed in your model storage path first.
-
-### Model Storage Configuration (v0.1.1)
-
-#### Path Selection
-1. Select **Configure Model Storage Path** from main menu
-2. Choose from available options:
-   - **External**: `/Volumes/T7/mlx-server` - Best for large collections
-   - **Local**: `~/mlx-server` - Always available on internal drive
-   - **Auto-detect** - Automatic External → Local fallback based on drive availability
-3. Selection is immediate - no confirmation needed
-4. Each path shows real-time status:
-   - ✓ Active (X models) - Path has models
-   - ✓ Available (no models) - Path exists but empty
-   - ✗ External drive not mounted - Drive unavailable
-5. Current path marked with ← indicator
-
-#### How It Works
-- **First Launch**: Auto-detects External if `/Volumes/T7` is mounted, otherwise uses Local
-- **Persistence**: Selected path saved to `~/.efx-face-manager.conf`
-- **Subsequent Launches**: Loads saved path preference
-- **Path Switching**: All operations (install/run/list) immediately use new path
-- **Independence**: Each path maintains its own model collection
-
-### Running Models (v0.1.0)
-
-#### Quick Launch with Presets
-1. Select **Run an Installed LLM**
-2. Choose a model from installed models
-3. Select a preset configuration:
-   - **lm (text-only)** - Default language model
-   - **multimodal (vision, audio)** - Multimodal processing
-   - **image-generation (qwen-image, q16)** - Image generation with Qwen
-   - **image-edit (qwen-image-edit, q16)** - Image editing with Qwen
-   - **embeddings** - Text embeddings
-   - **whisper (audio transcription)** - Speech-to-text
-4. Choose action:
-   - **▶ Run** - Launch immediately with preset defaults
-   - **⚙️  Modify config...** - Customize parameters before launch
-   - **✖ Cancel** - Go back
-
-#### Interactive Configuration
-When you select **Modify config...**:
-- All parameters displayed on one screen
-- Click any parameter line to edit its value
-- See current values and defaults in real-time
-- Configure:
-  - Model type-specific options (context length, quantization, etc.)
-  - Server settings (port, host, logging)
-  - Advanced options (LoRA adapters, tool calling, parsers)
-- Preview full command before execution
-- Cancel returns to preset menu (preserves navigation stack)
-
-### Installing Models
-
-1. Select **Install a New Hugging Face LLM**
-2. Choose a source:
-   - `mlx-community` - MLX-optimized models (recommended)
-   - `lmstudio-community` - LMStudio models
-   - `All Models` - Browse all Hugging Face models
-3. Choose browse mode:
-   - **🔍 Search a model...** - Enter search term to filter models
-   - **📋 Show all models...** - Browse paginated list (100 per page)
-4. Select a model to view details (downloads, likes, size, last update)
-5. Choose **Install this LLM** to download
-6. Press ESC or Back to return to browse mode menu (not root)
-
-### Model Storage Structure
-
-```
-$MODEL_DIR/                        # Selected path (External/Local/Legacy)
-├── cache/                         # Downloaded model files
-│   └── models--org--ModelName/
-│       └── snapshots/
-│           └── abc123/
-├── ModelName -> cache/.../        # Symlink to model
-└── AnotherModel -> cache/.../     # Clean root with symlinks
-```
-
-**Multiple Paths:**
-- Each path (`External`, `Local`) maintains independent model collections
-- Switching paths shows only models in that location
-- Models don't move when switching - they stay in their original path
-
-**Bug Fix (v0.1.5):**
-- Fixed symlink creation bug where all models pointed to the same cached model
-- Each model now correctly links to its own cache directory
-- Re-download models if installed with v0.1.4 or earlier
-
-**Enhancement (v0.1.6):**
-- Updated documentation with dual installation methods (pipx and uv)
-- Added mlx-lm update instructions for newest model architectures
-- Added troubleshooting for unsupported model types
-
-**Enhancement (v0.1.7):**
-- Added quick "Trust remote code" toggle on preset launch screen for LM/multimodal models
-- No need to enter config menu to enable trust_remote_code for models like IQuest-Coder
-
-**Enhancement (v0.1.8):**
-- Added logo header to all configuration menus
-- Clear screen before redrawing to prevent overlapping displays
-- Cleaner UI experience when toggling options or returning from config menus
-
-**Enhancement (v0.1.10):**
-- Added **⚡ Run LM on Template** menu option for fast model launching
-- Added **GLM-4.7-Flash-8bit** template with optimized configuration
-- Added template models documentation with usage instructions
-- Improved main menu organization and discoverability
-
-**Fix (v0.1.11):**
-- Added **glm47_flash** to --reasoning-parser param from GLM-4.7-Flash-8bit template
-
-**Enhancement (v0.1.12):**
-- Added **Qwen3-VL-8B-Thinking-8bit** vision template with multimodal support
-- Enhanced template collection with vision-language capabilities
-- Optimized queue management for multimodal models
-
-**Fix (v0.1.13):**
-- Fixed **mlx-openai-server command not found** error in template execution
-- Added intelligent mlx-openai-server detection supporting multiple installation methods (pipx, uv venv)
-- Script now automatically detects and uses correct mlx-openai-server installation
-- Improved compatibility with both documented installation methods from README
-
-## Keyboard Shortcuts
+## Keyboard Reference
 
 | Key | Action |
 |-----|--------|
-| `↑/↓` | Navigate menu |
-| `Enter` | Select option |
-| `ESC` | Go back / Exit |
+| `↑/↓` | Navigate lists and options |
+| `Enter` | Select / Confirm |
+| `Tab` | Switch between panels |
+| `←/→` | Switch pages / columns |
+| `ESC` | Go back one screen |
+| `q` | Quit / Return to home |
+| `s` | Stop selected server |
+| `S` | Stop ALL servers |
+| `n` | Start new server |
+| `c` | Clear server logs |
+| `g/G` | Jump to top/bottom of logs |
 
-## Requirements
+---
 
-- macOS with Apple Silicon (M1/M2/M3/M4)
-- Python 3.8+
-- Disk space varies by model (1GB - 50GB+)
+## Building
+
+```bash
+make build         # Current platform
+make build-all     # All 6 platforms
+make build-mac     # macOS ARM64 + AMD64
+make build-linux   # Linux ARM64 + AMD64
+make build-windows # Windows ARM64 + AMD64
+make help          # Show all options
+```
+
+---
 
 ## Troubleshooting
 
-### "gum: command not found"
-```bash
-brew install gum
-```
+**"mlx-openai-server: command not found"**
+→ Install mlx-openai-server (see Prerequisites)
 
-### "jq: command not found"
-```bash
-brew install jq
-```
+**"Model type not supported"**
+→ Update mlx-lm: `uv pip install git+https://github.com/ml-explore/mlx-lm.git`
 
-### "hf: command not found"
-```bash
-brew install huggingface-cli
-```
+**"trust_remote_code" error**
+→ Enable "Trust remote code" in config panel or add `--trust-remote-code` flag
 
-### "mlx-openai-server: command not found"
-```bash
-pipx install mlx-openai-server
-```
-
-### Models not showing
-- Check your internet connection
-- Verify Hugging Face API is accessible
-- Try searching with a specific term
-
-### "Model type [architecture] not supported" error
-
-If you encounter an error like `Model type iquestcoder not supported`, your mlx-lm version may be outdated.
-
-**Solution:**
-```bash
-# Uninstall old mlx-lm
-pipx runpip mlx-openai-server uninstall mlx-lm -y
-
-# Install latest from GitHub
-pipx runpip mlx-openai-server install git+https://github.com/ml-explore/mlx-lm.git
-
-# Verify it worked
-grep "iquestcoder" ~/.local/pipx/venvs/mlx-openai-server/lib/python3.*/site-packages/mlx_lm/utils.py
-# Should output: "iquestcoder": "llama",
-```
-
-### "trust_remote_code" error
-
-If you see: `Please pass the argument trust_remote_code=True to allow custom code to be run`
-
-**Solution:**
-Add the `--trust-remote-code` flag when launching:
-```bash
-mlx-openai-server launch \
-  --model-path /path/to/model \
-  --model-type lm \
-  --trust-remote-code \
-  --host 0.0.0.0 \
-  --port 8000
-```
+---
 
 ## License
 
-MIT License - Feel free to use, modify, and distribute.
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
+MIT License — Feel free to use, modify, and distribute.
 
 ## Credits
 
-- [Hugging Face](https://huggingface.co) - Model hosting
-- [mlx-openai-server](https://github.com/cubist38/mlx-openai-server) - OpenAI-compatible server for MLX (Apple's ML framework)
-- [gum](https://github.com/charmbracelet/gum) - Terminal UI toolkit
-- [VHS](https://github.com/charmbracelet/vhs) - Terminal GIF recorder for scripted CLI demos
+- [Hugging Face](https://huggingface.co) — Model hosting
+- [mlx-openai-server](https://github.com/cubist38/mlx-openai-server) — OpenAI-compatible server
+- [Bubbletea](https://github.com/charmbracelet/bubbletea) & [Lipgloss](https://github.com/charmbracelet/lipgloss) — TUI framework
 - Coded with [Qoder](https://qoder.com/)
+
+---
+
+**by Laurent Marques**
