@@ -247,22 +247,20 @@ func (m menuModel) View() string {
 	contentWidth := getContentWidth(m.width)
 	var b strings.Builder
 
-	// Big header for main menu only
-	b.WriteString(titleStyle.Render(asciiHeaderBig))
-	b.WriteString("\n")
+	// Render header and subtitle together with explicit left alignment
+	headerContent := lipgloss.JoinVertical(lipgloss.Left,
+		titleStyle.Render(asciiHeaderBig),
+		infoLineStyle.Render("M L X   H u g g i n g F a c e   M a n a g e r"),
+	)
+	b.WriteString(headerContent)
 	
-	// Spaced subtitle first (on top)
-	spacedSubtitle := "M L X   H u g g i n g   F a c e   M a n a g e r"
-	b.WriteString(infoLineStyle.Render(spacedSubtitle))
-	b.WriteString("\n")
-	
-	// Version line below with leading spaces
-	versionLine := "                                                    v" + version + " - Efx"
-	b.WriteString(infoLineStyle.Render(versionLine))
+	// Version line below with leading spaces - explicitly left-aligned
+	versionLine := "v" + version + " - Efx"
+	b.WriteString(infoLineStyle.Align(lipgloss.Left).Render(versionLine))
 	b.WriteString("\n\n")
 
 	// Box styles
-	boxWidth := contentWidth - 8
+	boxWidth := contentWidth - 21
 	colWidth := (boxWidth - 6) / 2
 	
 	activeBoxStyle := lipgloss.NewStyle().
@@ -289,7 +287,7 @@ func (m menuModel) View() string {
 			prefix := "  "
 			if isSelected {
 				style = optionSelectedStyle.Width(colWidth)
-				prefix = "> "
+				prefix = "  "  // Removed ">" symbol
 			}
 			rowStr.WriteString(style.Render(prefix + item))
 		}
@@ -318,7 +316,7 @@ func (m menuModel) View() string {
 			prefix := "  "
 			if isSelected {
 				style = optionSelectedStyle.Width(colWidth)
-				prefix = "> "
+				prefix = "  "  // Removed ">" symbol
 			}
 			rowStr.WriteString(style.Render(prefix + item))
 		}

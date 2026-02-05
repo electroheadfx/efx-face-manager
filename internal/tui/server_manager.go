@@ -175,7 +175,7 @@ func (m serverManagerModel) View() string {
 	panelHeight := m.height - 14
 
 	// Left panel: Server list + controls
-	leftContent := m.renderControlPanel(leftWidth, list)
+	leftContent := m.renderControlPanel(list)
 
 	// Right panel: Log viewport
 	rightContent := m.renderLogPanel(rightWidth)
@@ -220,7 +220,7 @@ func (m serverManagerModel) View() string {
 	return appStyle.Render(b.String())
 }
 
-func (m serverManagerModel) renderControlPanel(width int, list []*server.Instance) string {
+func (m serverManagerModel) renderControlPanel(list []*server.Instance) string {
 	var b strings.Builder
 	
 	b.WriteString(panelTitleStyle.Render("Server Controls"))

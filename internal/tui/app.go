@@ -3,7 +3,6 @@ package tui
 import (
 	"fmt"
 
-	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/lmarques/efx-face-manager/internal/config"
 	"github.com/lmarques/efx-face-manager/internal/hf"
@@ -310,10 +309,6 @@ func listenForServerUpdates(mgr *server.Manager) tea.Cmd {
 }
 
 // Viewport helper for scrollable content
-func newViewport(width, height int) viewport.Model {
-	vp := viewport.New(width, height)
-	return vp
-}
 
 // Run starts the main TUI
 func Run() error {

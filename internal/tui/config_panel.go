@@ -150,22 +150,24 @@ func (m configPanelModel) Update(msg tea.Msg) (configPanelModel, tea.Cmd) {
 			if m.editingValue {
 				return m, nil
 			}
-			if m.focusedPanel == panelActionBar {
+			switch m.focusedPanel {
+			case panelActionBar:
 				if m.controlSelected > 0 {
 					m.controlSelected--
 				}
-			} else if m.focusedPanel == panelSetup {
+			case panelSetup:
 				m.focusedPanel = panelOptions
 			}
 		case "right", "l":
 			if m.editingValue {
 				return m, nil
 			}
-			if m.focusedPanel == panelActionBar {
+			switch m.focusedPanel {
+			case panelActionBar:
 				if m.controlSelected < 2 {
 					m.controlSelected++
 				}
-			} else if m.focusedPanel == panelOptions {
+			case panelOptions:
 				m.focusedPanel = panelSetup
 				m.updateSetupPanel()
 			}
@@ -397,7 +399,7 @@ func (m configPanelModel) View() string {
 	b.WriteString("\n")
 
 	// Action bar in a box (horizontal)
-	actionBar := m.renderActionBar(contentWidth)
+	actionBar := m.renderActionBar()
 	actionBoxStyle := panelStyle.Width(contentWidth)
 	if m.focusedPanel == panelActionBar {
 		actionBoxStyle = panelFocusedStyle.Width(contentWidth)
@@ -411,7 +413,7 @@ func (m configPanelModel) View() string {
 	panelHeight := m.height - 20
 
 	optionsPanel := m.renderOptionsPanel(optionsWidth)
-	setupPanel := m.renderSetupPanel(setupWidth)
+	setupPanel := m.renderSetupPanel()
 
 	optionsBox := getPanelStyle(optionsWidth, panelHeight, m.focusedPanel == panelOptions).Render(optionsPanel)
 	setupBox := getPanelStyle(setupWidth, panelHeight, m.focusedPanel == panelSetup).Render(setupPanel)
@@ -458,7 +460,7 @@ func wrapText(text string, maxWidth int) []string {
 	return lines
 }
 
-func (m configPanelModel) renderActionBar(width int) string {
+func (m configPanelModel) renderActionBar() string {
 	// Show port next to Run button
 	runLabel := fmt.Sprintf("▶ Run :%d", m.config.Port)
 	
@@ -512,7 +514,7 @@ func (m configPanelModel) renderOptionsPanel(width int) string {
 	return lipgloss.JoinVertical(lipgloss.Left, title, "", content)
 }
 
-func (m configPanelModel) renderSetupPanel(width int) string {
+func (m configPanelModel) renderSetupPanel() string {
 	if m.optionSelected >= len(m.options) {
 		return ""
 	}

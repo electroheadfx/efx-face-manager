@@ -314,10 +314,11 @@ func (m modelTypeModel) Update(msg tea.Msg) (modelTypeModel, tea.Cmd) {
 				cfg.Type = m.types[m.selected]
 				
 				// Apply defaults for image types
-				if cfg.Type == model.TypeImageGeneration {
+				switch cfg.Type {
+				case model.TypeImageGeneration:
 					cfg.ConfigName = "qwen-image"
 					cfg.Quantize = 16
-				} else if cfg.Type == model.TypeImageEdit {
+				case model.TypeImageEdit:
 					cfg.ConfigName = "qwen-image-edit"
 					cfg.Quantize = 16
 				}
