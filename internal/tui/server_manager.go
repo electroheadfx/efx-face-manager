@@ -214,7 +214,10 @@ func (m serverManagerModel) View() string {
 	b.WriteString(controlRow)
 	b.WriteString("\n")
 
-	// Row 2: Log viewport - Full width with maximized height
+	// Row 2: Log viewport - Width must match the combined control panels above
+	// Each control panel rendered width = colWidth + 2 (border), so total = leftColWidth + rightColWidth + 4
+	// Log panel rendered width = logPanelWidth + 2 (border), so we need logPanelWidth + 2 = leftColWidth + rightColWidth + 4
+	logPanelWidth := leftColWidth + rightColWidth + 2
 	logPanelHeight := m.height - controlPanelHeight - 7  // Account for title, borders, footer
 	if logPanelHeight < 5 {
 		logPanelHeight = 5  // Minimum height to prevent crash
@@ -228,7 +231,7 @@ func (m serverManagerModel) View() string {
 	}
 	
 	logPanel := lipgloss.NewStyle().
-		Width(contentWidth).
+		Width(logPanelWidth).
 		Height(logPanelHeight).
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(logBorder).

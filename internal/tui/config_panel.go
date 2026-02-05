@@ -241,6 +241,11 @@ func (m configPanelModel) Update(msg tea.Msg) (configPanelModel, tea.Cmd) {
 				m.editBuffer = ""
 			}
 			// Don't handle ESC when not editing - let app.go global handler use history
+		case "q":
+			// Navigate to homepage when not editing
+			if !m.editingValue {
+				return m, func() tea.Msg { return goBackMsg{} }
+			}
 		case "backspace":
 			if m.editingValue && len(m.editBuffer) > 0 {
 				m.editBuffer = m.editBuffer[:len(m.editBuffer)-1]
@@ -425,25 +430,44 @@ func (m configPanelModel) View() string {
 	}
 	b.WriteString("\n")
 
-	// Action bar in a box (horizontal)
-	actionBar := m.renderActionBar()
-	actionBoxStyle := panelStyle.Width(contentWidth)
-	if m.focusedPanel == panelActionBar {
-		actionBoxStyle = panelFocusedStyle.Width(contentWidth)
-	}
-	b.WriteString(actionBoxStyle.Render(actionBar))
-	b.WriteString("\n\n")
-
 	// Two columns: Options (50%) | Setup (50%)
 	optionsWidth := contentWidth*50/100 - 2
 	setupWidth := contentWidth*50/100 - 2
 	panelHeight := m.height - 20
 
-	optionsPanel := m.renderOptionsPanel(optionsWidth)
-	setupPanel := m.renderSetupPanel()
+	// Action bar in a box (horizontal) - Width must match the combined panels below
+	// Each panel rendered width = panelWidth + 2 (border), so total = optionsWidth + setupWidth + 4
+	// Action bar rendered width = actionBarWidth + 2 (border), so we need actionBarWidth + 2 = optionsWidth + setupWidth + 4
+	actionBarWidth := optionsWidth + setupWidth + 2
+	actionBar := m.renderActionBar()
+	actionBoxStyle := panelStyle.Width(actionBarWidth)
+	if m.focusedPanel == panelActionBar {
+		actionBoxStyle = panelFocusedStyle.Width(actionBarWidth)
+	}
+	b.WriteString(actionBoxStyle.Render(actionBar))
+	b.WriteString("\n\n")
 
-	optionsBox := getPanelStyle(optionsWidth, panelHeight, m.focusedPanel == panelOptions).Render(optionsPanel)
-	setupBox := getPanelStyle(setupWidth, panelHeight, m.focusedPanel == panelSetup).Render(setupPanel)
+	optionsContent := m.renderOptionsPanel(optionsWidth)
+	setupContent := m.renderSetupPanel()
+
+	// Count lines in each panel content to find the maximum
+	optionsLines := strings.Count(optionsContent, "\n") + 1
+	setupLines := strings.Count(setupContent, "\n") + 1
+	maxLines := optionsLines
+	if setupLines > maxLines {
+		maxLines = setupLines
+	}
+	
+	// Pad both panels to have exactly maxLines
+	if optionsLines < maxLines {
+		optionsContent += strings.Repeat("\n", maxLines-optionsLines)
+	}
+	if setupLines < maxLines {
+		setupContent += strings.Repeat("\n", maxLines-setupLines)
+	}
+
+	optionsBox := getPanelStyle(optionsWidth, panelHeight, m.focusedPanel == panelOptions).Render(optionsContent)
+	setupBox := getPanelStyle(setupWidth, panelHeight, m.focusedPanel == panelSetup).Render(setupContent)
 
 	panels := lipgloss.JoinHorizontal(lipgloss.Top, optionsBox, setupBox)
 	b.WriteString(panels)
