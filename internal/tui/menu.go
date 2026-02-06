@@ -96,29 +96,78 @@ func (m menuModel) Update(msg tea.Msg) (menuModel, tea.Cmd) {
 		grid := m.getCurrentGrid()
 		switch msg.String() {
 		case "up", "k":
-			if m.row > 0 {
+			// UP key: move up within column, or switch columns at boundaries
+			if m.row == 0 {
+				// At first row
+				if m.col == 0 {
+					// First row, first column -> wrap to last row, second column
+					m.row = len(grid) - 1
+					// Check if second column exists in last row
+					if len(grid[m.row]) > 1 {
+						m.col = 1
+					} else {
+						// No second column in last row, stay in first column
+						m.col = 0
+					}
+				} else {
+					// First row, second column -> move to first column same row
+					m.col = 0
+				}
+			} else {
+				// Not at first row - move up within same column
 				m.row--
-				// Clamp col to row length
+				// Clamp col if new row doesn't have this column
 				if m.col >= len(grid[m.row]) {
 					m.col = len(grid[m.row]) - 1
 				}
 			}
+			return m, nil
 		case "down", "j":
-			if m.row < len(grid)-1 {
+			// DOWN key: move down within column, or switch columns at boundaries
+			if m.row == len(grid)-1 {
+				// At last row
+				if m.col == 0 {
+					// Last row, first column -> try move to second column same row
+					if len(grid[m.row]) > 1 {
+						m.col = 1
+					} else {
+						// No second column, wrap to first row, first column
+						m.row = 0
+						m.col = 0
+					}
+				} else {
+					// Last row, second column -> wrap to first row, first column
+					m.row = 0
+					m.col = 0
+				}
+			} else {
+				// Not at last row - move down within same column
 				m.row++
-				// Clamp col to row length
+				// Clamp col if new row doesn't have this column
 				if m.col >= len(grid[m.row]) {
 					m.col = len(grid[m.row]) - 1
 				}
 			}
-		case "left", "h":
-			if m.col > 0 {
-				m.col--
+			return m, nil
+		case "left", "h", "right", "l":
+			// LEFT/RIGHT keys: toggle between columns
+			if m.col == 0 {
+				// In first column, try to move to second column
+				if len(grid[m.row]) > 1 {
+					// Second column exists in current row
+					m.col = 1
+				} else {
+					// No second column in current row, try previous row
+					if m.row > 0 && len(grid[m.row-1]) > 1 {
+						m.row--
+						m.col = 1
+					}
+				}
+			} else {
+				// In second column, move to first column same row
+				m.col = 0
 			}
-		case "right", "l":
-			if m.col < len(grid[m.row])-1 {
-				m.col++
-			}
+			return m, nil
 		case "tab":
 			// TAB cycles within current column only
 			if m.col == 0 {
