@@ -24,26 +24,26 @@ type serverManagerModel struct {
 func newServerManagerModel(servers *server.Manager, width, height int) serverManagerModel {
 	// Calculate proper viewport dimensions to prevent crash
 	contentWidth := width - 4
-	logPanelHeight := height - 8 - 10  // control height (8) + title/borders/footer/leading newlines (10)
+	logPanelHeight := height - 8 - 10 // control height (8) + title/borders/footer/leading newlines (10)
 	if logPanelHeight < 5 {
 		logPanelHeight = 5
 	}
-	vp := viewport.New(contentWidth-4, logPanelHeight-3)  // Account for padding and title
-	
+	vp := viewport.New(contentWidth-4, logPanelHeight-3) // Account for padding and title
+
 	m := serverManagerModel{
 		servers:  servers,
 		width:    width,
 		height:   height,
 		viewport: vp,
 	}
-	
+
 	// Select first server if any
 	list := servers.List()
 	if len(list) > 0 {
 		m.selectedPort = list[0].Port
 		m.viewport.SetContent(servers.GetLogs(m.selectedPort))
 	}
-	
+
 	return m
 }
 
@@ -53,7 +53,7 @@ func (m serverManagerModel) Init() tea.Cmd {
 
 func (m serverManagerModel) Update(msg tea.Msg) (serverManagerModel, tea.Cmd) {
 	var cmd tea.Cmd
-	
+
 	switch msg := msg.(type) {
 	case serverUpdateMsg:
 		// Refresh logs if it's for the selected server
@@ -62,7 +62,7 @@ func (m serverManagerModel) Update(msg tea.Msg) (serverManagerModel, tea.Cmd) {
 			m.viewport.GotoBottom()
 		}
 		return m, nil
-		
+
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "up", "k":
@@ -114,6 +114,11 @@ func (m serverManagerModel) Update(msg tea.Msg) (serverManagerModel, tea.Cmd) {
 			// Open new server dialog
 			return m, func() tea.Msg { return openNewServerMsg{} }
 		case "c":
+			// Open chat for selected server
+			if m.selectedPort > 0 {
+				return m, func() tea.Msg { return openChatMsg{port: m.selectedPort} }
+			}
+		case "x":
 			// Clear logs
 			if m.selectedPort > 0 {
 				if inst := m.servers.Get(m.selectedPort); inst != nil {
@@ -139,25 +144,25 @@ func (m serverManagerModel) Update(msg tea.Msg) (serverManagerModel, tea.Cmd) {
 		case "m", "esc":
 			return m, func() tea.Msg { return goBackMsg{} }
 		}
-	
+
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
 		// Update viewport dimensions to match new layout
 		contentWidth := msg.Width - 4
-		logPanelHeight := msg.Height - 8 - 7  // control height (8) + title/borders/footer (7)
+		logPanelHeight := msg.Height - 8 - 7 // control height (8) + title/borders/footer (7)
 		if logPanelHeight < 5 {
 			logPanelHeight = 5
 		}
 		m.viewport.Width = contentWidth - 4
-		m.viewport.Height = logPanelHeight - 3  // Account for padding and title
+		m.viewport.Height = logPanelHeight - 3 // Account for padding and title
 	}
-	
+
 	// Update viewport for scroll
 	if m.focusOnLogs {
 		m.viewport, cmd = m.viewport.Update(msg)
 	}
-	
+
 	return m, cmd
 }
 
@@ -181,22 +186,22 @@ func (m serverManagerModel) View() string {
 	b.WriteString("\n")
 
 	// VERTICAL LAYOUT: Row 1 (Server Controls with 2 columns) + Row 2 (Logs full width)
-	
+
 	// Row 1: Server Controls - Minimal height to maximize log space
-	controlPanelHeight := 8  // Compact height - content fills without gaps
-	leftColWidth := contentWidth * 50 / 100 - 2
-	rightColWidth := contentWidth * 50 / 100 - 2
-	
+	controlPanelHeight := 8 // Compact height - content fills without gaps
+	leftColWidth := contentWidth*50/100 - 2
+	rightColWidth := contentWidth*50/100 - 2
+
 	// Left column: Server list
 	leftControlContent := m.renderServerList(list)
 	// Right column: Selected server details
 	rightControlContent := m.renderServerDetails()
-	
+
 	controlBorder := muted
 	if !m.focusOnLogs {
 		controlBorder = primary
 	}
-	
+
 	leftControlPanel := lipgloss.NewStyle().
 		Width(leftColWidth).
 		Height(controlPanelHeight).
@@ -204,7 +209,7 @@ func (m serverManagerModel) View() string {
 		BorderForeground(controlBorder).
 		Padding(0, 1).
 		Render(leftControlContent)
-	
+
 	rightControlPanel := lipgloss.NewStyle().
 		Width(rightColWidth).
 		Height(controlPanelHeight).
@@ -212,7 +217,7 @@ func (m serverManagerModel) View() string {
 		BorderForeground(controlBorder).
 		Padding(0, 1).
 		Render(rightControlContent)
-	
+
 	controlRow := lipgloss.JoinHorizontal(lipgloss.Top, leftControlPanel, rightControlPanel)
 	b.WriteString(controlRow)
 	b.WriteString("\n")
@@ -221,18 +226,18 @@ func (m serverManagerModel) View() string {
 	// Each control panel rendered width = colWidth + 2 (border), so total = leftColWidth + rightColWidth + 4
 	// Log panel rendered width = logPanelWidth + 2 (border), so we need logPanelWidth + 2 = leftColWidth + rightColWidth + 4
 	logPanelWidth := leftColWidth + rightColWidth + 2
-	logPanelHeight := m.height - controlPanelHeight - 10  // Account for title, borders, footer, leading newlines
+	logPanelHeight := m.height - controlPanelHeight - 10 // Account for title, borders, footer, leading newlines
 	if logPanelHeight < 5 {
-		logPanelHeight = 5  // Minimum height to prevent crash
+		logPanelHeight = 5 // Minimum height to prevent crash
 	}
-	
+
 	logContent := m.renderLogPanel()
-	
+
 	logBorder := muted
 	if m.focusOnLogs {
 		logBorder = primary
 	}
-	
+
 	logPanel := lipgloss.NewStyle().
 		Width(logPanelWidth).
 		Height(logPanelHeight).
@@ -240,12 +245,12 @@ func (m serverManagerModel) View() string {
 		BorderForeground(logBorder).
 		Padding(0, 1).
 		Render(logContent)
-	
+
 	b.WriteString(logPanel)
 
 	// Footer with shortcuts
 	b.WriteString("\n")
-	b.WriteString(helpStyle.Render("[↑/↓] select server  [s] stop  [S] stop all  [n] new  [c] clear  [tab] focus logs  [esc] menu"))
+	b.WriteString(helpStyle.Render("[↑/↓] select server  [s] stop  [S] stop all  [n] new  [c] chat  [x] clear  [tab] focus logs  [esc] menu"))
 
 	return appStyle.Render(b.String())
 }
@@ -253,10 +258,10 @@ func (m serverManagerModel) View() string {
 // renderServerList renders the left column: running servers list
 func (m serverManagerModel) renderServerList(list []*server.Instance) string {
 	var b strings.Builder
-	
+
 	b.WriteString(panelTitleStyle.Render(fmt.Sprintf("Running Servers (%d)", len(list))))
 	b.WriteString("\n")
-	
+
 	if len(list) == 0 {
 		b.WriteString(statusMutedStyle.Render("No servers running"))
 	} else {
@@ -286,7 +291,7 @@ func (m serverManagerModel) renderServerList(list []*server.Instance) string {
 // renderServerDetails renders the right column: selected server details & actions
 func (m serverManagerModel) renderServerDetails() string {
 	var b strings.Builder
-	
+
 	b.WriteString(panelTitleStyle.Render("Selected Server"))
 	b.WriteString("\n")
 	if m.selectedPort > 0 {
@@ -303,7 +308,7 @@ func (m serverManagerModel) renderServerDetails() string {
 
 func (m serverManagerModel) renderLogPanel() string {
 	var b strings.Builder
-	
+
 	// Title with server info - no truncation, no newlines, no separator
 	if m.selectedPort > 0 {
 		if inst := m.servers.Get(m.selectedPort); inst != nil {
@@ -315,19 +320,19 @@ func (m serverManagerModel) renderLogPanel() string {
 		b.WriteString(panelTitleStyle.Render("Server Output"))
 	}
 	b.WriteString("\n")
-	
+
 	// Viewport content
 	if m.selectedPort > 0 {
 		b.WriteString(m.viewport.View())
 	} else {
 		b.WriteString(statusMutedStyle.Render("No server selected"))
 	}
-	
+
 	// Scroll indicator - no extra newline
 	if m.selectedPort > 0 {
 		b.WriteString(" ")
 		b.WriteString(infoLineStyle.Render(fmt.Sprintf("%.0f%% [↑/↓] scroll  [g/G] top/bottom", m.viewport.ScrollPercent()*100)))
 	}
-	
+
 	return b.String()
 }

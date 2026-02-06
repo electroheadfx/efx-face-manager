@@ -17,6 +17,7 @@ const (
 	menuRunInstalled
 	menuUninstall
 	menuServerManager
+	menuChat
 	menuConfigStorage
 	menuExit
 )
@@ -30,11 +31,11 @@ var box1Grid = [][]int{
 }
 
 // Box 2: 2-col grid
-// Row 0: [Server Manager, Setup]
-// Row 1: [Exit]
+// Row 0: [Server Manager, Chat]
+// Row 1: [Setup, Exit]
 var box2Grid = [][]int{
-	{menuServerManager, menuConfigStorage},
-	{menuExit},
+	{menuServerManager, menuChat},
+	{menuConfigStorage, menuExit},
 }
 
 var menuItems = []string{
@@ -43,6 +44,7 @@ var menuItems = []string{
 	"▶  Run a model",
 	"✕  Remove a model",
 	"◉  Server Manager",
+	"💬 Chat with LM",
 	"⚙  Setup model path",
 	"✖  Exit",
 }
@@ -279,6 +281,13 @@ func (m menuModel) Update(msg tea.Msg) (menuModel, tea.Cmd) {
 				return m, func() tea.Msg { return openUninstallMsg{} }
 			case menuServerManager:
 				return m, func() tea.Msg { return openServerManagerMsg{} }
+			case menuChat:
+				// Open chat - goes to server manager if servers running, user can pick
+				if m.serverCount > 0 {
+					return m, func() tea.Msg { return openServerManagerMsg{} }
+				}
+				// No servers running - show server manager anyway so user can start one
+				return m, func() tea.Msg { return openServerManagerMsg{} }
 			case menuConfigStorage:
 				return m, func() tea.Msg { return openStorageConfigMsg{} }
 			case menuExit:
@@ -303,13 +312,13 @@ func (m menuModel) View() string {
 	// Box styles
 	boxWidth := contentWidth - 21
 	colWidth := (boxWidth - 6) / 2
-	
+
 	activeBoxStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(primary).
 		Padding(0, 2).
 		Width(boxWidth)
-	
+
 	inactiveBoxStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(muted).
@@ -323,12 +332,12 @@ func (m menuModel) View() string {
 		for colIdx, itemIdx := range rowItems {
 			item := menuItems[itemIdx]
 			isSelected := m.box == 0 && rowIdx == m.row && colIdx == m.col
-			
+
 			style := optionNormalStyle.Width(colWidth)
 			prefix := "  "
 			if isSelected {
 				style = optionSelectedStyle.Width(colWidth)
-				prefix = "  "  // Removed ">" symbol
+				prefix = "  " // Removed ">" symbol
 			}
 			rowStr.WriteString(style.Render(prefix + item))
 		}
@@ -337,7 +346,7 @@ func (m menuModel) View() string {
 			box1Content.WriteString("\n")
 		}
 	}
-	
+
 	box1Style := inactiveBoxStyle
 	if m.box == 0 {
 		box1Style = activeBoxStyle
@@ -352,12 +361,12 @@ func (m menuModel) View() string {
 		for colIdx, itemIdx := range rowItems {
 			item := menuItems[itemIdx]
 			isSelected := m.box == 1 && rowIdx == m.row && colIdx == m.col
-			
+
 			style := optionNormalStyle.Width(colWidth)
 			prefix := "  "
 			if isSelected {
 				style = optionSelectedStyle.Width(colWidth)
-				prefix = "  "  // Removed ">" symbol
+				prefix = "  " // Removed ">" symbol
 			}
 			rowStr.WriteString(style.Render(prefix + item))
 		}
@@ -366,7 +375,7 @@ func (m menuModel) View() string {
 			box2Content.WriteString("\n")
 		}
 	}
-	
+
 	box2Style := inactiveBoxStyle
 	if m.box == 1 {
 		box2Style = activeBoxStyle

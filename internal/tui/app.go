@@ -27,21 +27,22 @@ const (
 	viewNewServer
 	viewStorageConfig
 	viewUninstall
+	viewChat
 )
 
 // Main application model
 type appModel struct {
-	state        viewState
-	history      []viewState // Navigation history stack
-	lastQPressTime int64      // Track last 'q' press for double-q quit
-	width        int
-	height       int
-	err          error
+	state          viewState
+	history        []viewState // Navigation history stack
+	lastQPressTime int64       // Track last 'q' press for double-q quit
+	width          int
+	height         int
+	err            error
 
 	// Core services
-	cfg      *config.Config
-	store    *model.Store
-	servers  *server.Manager
+	cfg     *config.Config
+	store   *model.Store
+	servers *server.Manager
 
 	// Sub-models
 	menuModel          menuModel
@@ -55,6 +56,7 @@ type appModel struct {
 	uninstallModel     uninstallModel
 	detailsModel       detailsModel
 	serverNewModel     serverNewModel
+	chatModel          chatModel
 }
 
 // Initialize the main model
@@ -99,12 +101,12 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		// Handle ESC globally for ALL views EXCEPT viewSearch (which handles its own ESC for search/filter)
-		if msg.String() == "esc" && m.state != viewMenu && m.state != viewSearch {
+		// Handle ESC globally for ALL views EXCEPT viewSearch and viewChat (which handle their own ESC)
+		if msg.String() == "esc" && m.state != viewMenu && m.state != viewSearch && m.state != viewChat {
 			prevState, newHistory := popHistory(m.history)
 			m.history = newHistory
 			m.state = prevState
-			
+
 			// Reinitialize the model for the previous state
 			switch prevState {
 			case viewMenu:
@@ -153,7 +155,7 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		// Handle 'q' key - skip for views with text input
-		if m.state != viewSearch && m.state != viewConfig && m.state != viewStorageConfig {
+		if m.state != viewSearch && m.state != viewConfig && m.state != viewStorageConfig && m.state != viewChat {
 			if msg.String() == "q" {
 				if m.state == viewMenu {
 					// On home page - quit application
@@ -183,6 +185,9 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, listenForServerUpdates(m.servers))
 		if m.state == viewServerManager {
 			m.serverManagerModel, _ = m.serverManagerModel.Update(msg)
+		}
+		if m.state == viewChat {
+			m.chatModel, _ = m.chatModel.Update(msg)
 		}
 		// Update menu to show server count
 		m.menuModel.serverCount = m.servers.Count()
@@ -308,6 +313,17 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.configPanelModel.width = m.width
 		m.configPanelModel.height = m.height
 		return m, nil
+
+	case openChatMsg:
+		// Open chat window for a server
+		m.history = pushHistory(m.history, m.state)
+		m.state = viewChat
+		serverName := ""
+		if inst := m.servers.Get(msg.port); inst != nil {
+			serverName = inst.Model
+		}
+		m.chatModel = newChatModel(msg.port, serverName, m.servers, msg.conversationID, m.width, m.height)
+		return m, nil
 	}
 
 	// Delegate to sub-models
@@ -335,6 +351,8 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.detailsModel, cmd = m.detailsModel.Update(msg)
 	case viewNewServer:
 		m.serverNewModel, cmd = m.serverNewModel.Update(msg)
+	case viewChat:
+		m.chatModel, cmd = m.chatModel.Update(msg)
 	}
 	cmds = append(cmds, cmd)
 
@@ -365,6 +383,8 @@ func (m appModel) View() string {
 		return m.detailsModel.View()
 	case viewNewServer:
 		return m.serverNewModel.View()
+	case viewChat:
+		return m.chatModel.View()
 	default:
 		return m.menuModel.View()
 	}
@@ -488,7 +508,7 @@ func RunConfig() error {
 // RunInstall installs a model from HuggingFace (CLI mode)
 func RunInstall(repoID string) error {
 	cfg, _ := config.Load()
-	
+
 	fmt.Println()
 	fmt.Println("Installing model:", repoID)
 	fmt.Println("Target:", config.DisplayPath(cfg.ModelDir))
@@ -496,7 +516,7 @@ func RunInstall(repoID string) error {
 
 	// Use huggingface-cli to download
 	client := hf.NewClient()
-	
+
 	fmt.Println("Downloading from HuggingFace...")
 	err := client.Download(repoID, cfg.ModelDir)
 	if err != nil {
