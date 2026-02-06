@@ -2,7 +2,7 @@
 
 ![efx-face logo](./src/img/logo.png)
 
-**Version 2.0.0** | A beautiful TUI for managing MLX models on Apple Silicon
+**Version 0.2.0** | A beautiful TUI for managing MLX models on Apple Silicon
 
 Browse, install, and run MLX-optimized models from Hugging Face with an intuitive terminal interface built with [Bubbletea](https://github.com/charmbracelet/bubbletea) and [Lipgloss](https://github.com/charmbracelet/lipgloss).
 
