@@ -168,7 +168,10 @@ Templates are **pre-configured model setups** optimized for specific use cases:
 - **GLM-4.7-Flash-8bit** — Fast Chinese/English language model with reasoning
 - **Qwen3-Coder-30B** — Optimized for coding tasks
 - **Qwen3-VL-8B-Thinking** — Vision-language multimodal model
+- **PaddleOCR-VL-1.5** — OCR-focused vision models (8-bit and bf16 variants)
 - **NVIDIA-Nemotron** — General purpose language model
+
+**All Templates Configurable:** All templates are loaded from `~/.config/efx-face-manager/templates.yaml`. You can modify existing templates or add new ones. See `templates.example.yaml` for the format.
 
 Select a template and press `Enter` to proceed to configuration.
 

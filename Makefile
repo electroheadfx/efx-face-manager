@@ -62,12 +62,15 @@ build-windows:
 # Create release archives for GitHub
 release: build-all
 	@echo "Creating release archives..."
-	@cd $(BUILD_DIR) && tar -czf $(BINARY)-$(VERSION)-darwin-arm64.tar.gz $(BINARY)-darwin-arm64
-	@cd $(BUILD_DIR) && tar -czf $(BINARY)-$(VERSION)-darwin-amd64.tar.gz $(BINARY)-darwin-amd64
-	@cd $(BUILD_DIR) && tar -czf $(BINARY)-$(VERSION)-linux-amd64.tar.gz $(BINARY)-linux-amd64
-	@cd $(BUILD_DIR) && tar -czf $(BINARY)-$(VERSION)-linux-arm64.tar.gz $(BINARY)-linux-arm64
-	@cd $(BUILD_DIR) && zip -q $(BINARY)-$(VERSION)-windows-amd64.zip $(BINARY)-windows-amd64.exe
-	@cd $(BUILD_DIR) && zip -q $(BINARY)-$(VERSION)-windows-arm64.zip $(BINARY)-windows-arm64.exe
+	@mkdir -p $(BUILD_DIR)/release
+	@cp templates.example.yaml $(BUILD_DIR)/release/
+	@cp README.md $(BUILD_DIR)/release/
+	@cd $(BUILD_DIR) && tar -czf $(BINARY)-$(VERSION)-darwin-arm64.tar.gz $(BINARY)-darwin-arm64 release/*
+	@cd $(BUILD_DIR) && tar -czf $(BINARY)-$(VERSION)-darwin-amd64.tar.gz $(BINARY)-darwin-amd64 release/*
+	@cd $(BUILD_DIR) && tar -czf $(BINARY)-$(VERSION)-linux-amd64.tar.gz $(BINARY)-linux-amd64 release/*
+	@cd $(BUILD_DIR) && tar -czf $(BINARY)-$(VERSION)-linux-arm64.tar.gz $(BINARY)-linux-arm64 release/*
+	@cd $(BUILD_DIR) && zip -q $(BINARY)-$(VERSION)-windows-amd64.zip $(BINARY)-windows-amd64.exe release/*
+	@cd $(BUILD_DIR) && zip -q $(BINARY)-$(VERSION)-windows-arm64.zip $(BINARY)-windows-arm64.exe release/*
 	@echo "✅ Release archives created:"
 	@ls -la $(BUILD_DIR)/*.tar.gz $(BUILD_DIR)/*.zip
 

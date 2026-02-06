@@ -114,11 +114,16 @@ func (m serverNewModel) Update(msg tea.Msg) (serverNewModel, tea.Cmd) {
 				// Select model and proceed to config
 				if m.selectedIdx < len(m.models) {
 					selectedModel := m.models[m.selectedIdx]
+					// Use the next available port (recalculate to ensure freshness)
+					port := m.port
+					if !m.editingPort {
+						port = m.servers.NextAvailablePort(8000)
+					}
 					return m, func() tea.Msg {
 						return openConfigMsg{
 							model:     selectedModel.Name,
 							modelType: m.modelType,
-							port:      m.port,
+							port:      port,
 						}
 					}
 				}
@@ -238,13 +243,19 @@ func (m serverNewModel) renderConfigPanel(width int) string {
 		portStyle = optionSelectedStyle
 	}
 	
-	portValue := fmt.Sprintf("[%d]", m.port)
+	// Always show the next available port unless user is editing
+	displayPort := m.port
+	if !m.editingPort {
+		displayPort = m.servers.NextAvailablePort(8000)
+	}
+	
+	portValue := fmt.Sprintf("[%d]", displayPort)
 	if m.editingPort {
 		portValue = fmt.Sprintf("[%s█]", m.portBuffer)
 	}
 	
 	portLine := portLabel + portValue
-	if m.servers.IsPortInUse(m.port) {
+	if m.servers.IsPortInUse(displayPort) && !m.editingPort {
 		portLine += warningStyle.Render(" (in use!)")
 	}
 	b.WriteString(portStyle.Render(portLine))

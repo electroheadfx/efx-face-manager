@@ -1,0 +1,69 @@
+# efx-face-manager templates configuration
+# Place this file at: ~/.config/efx-face-manager/templates.yaml
+# All templates are loaded from this file - modify to customize
+
+templates:
+  # GLM-4.7-Flash template
+  - name: "GLM-4.7-Flash-8bit"
+    model_name: "GLM-4.7-Flash-8bit"
+    model_type: "lm"
+    reasoning_parser: "glm47_flash"
+    tool_call_parser: "glm4_moe"
+    message_converter: "glm4_moe"
+    debug: true
+    port: 8000
+    host: "0.0.0.0"
+    description: "reasoning+tools"
+    
+  # Qwen3-Coder template
+  - name: "Qwen3-Coder-30B-A3B-Instruct-8bit"
+    model_name: "Qwen3-Coder-30B-A3B-Instruct-8bit"
+    model_type: "lm"
+    tool_call_parser: "qwen3_coder"
+    message_converter: "qwen3_coder"
+    port: 8000
+    host: "0.0.0.0"
+    description: "code+tools"
+    
+  # NVIDIA Nemotron template
+  - name: "NVIDIA-Nemotron-3-Nano-30B-A3B-MLX-8Bit"
+    model_name: "NVIDIA-Nemotron-3-Nano-30B-A3B-MLX-8Bit"
+    model_type: "lm"
+    tool_call_parser: "qwen3"
+    message_converter: "nemotron3_nano"
+    trust_remote_code: true
+    port: 8000
+    host: "0.0.0.0"
+    description: "tools"
+    
+  # Qwen3-VL Vision template
+  - name: "Qwen3-VL-8B-Thinking-8bit"
+    model_name: "Qwen3-VL-8B-Thinking-8bit"
+    model_type: "multimodal"
+    port: 8000
+    host: "0.0.0.0"
+    description: "vision+thinking"
+    
+  # PaddleOCR Vision-Language templates for OCR tasks
+  - name: "PaddleOCR-VL-1.5-8bit"
+    model_name: "PaddleOCR-VL-1.5-8bit"
+    model_type: "multimodal"
+    port: 8000
+    host: "0.0.0.0"
+    description: "ocr+vision (8-bit)"
+    
+  - name: "PaddleOCR-VL-1.5-bf16"
+    model_name: "PaddleOCR-VL-1.5-bf16"
+    model_type: "multimodal"
+    port: 8000
+    host: "0.0.0.0"
+    description: "ocr+vision (bf16)"
+    
+  # Add your custom templates here
+  # Example: Custom template with different port
+  # - name: "My-Custom-Model"
+  #   model_name: "My-Custom-Model"
+  #   model_type: "lm"
+  #   port: 8001
+  #   host: "0.0.0.0"
+  #   description: "my custom model"

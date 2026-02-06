@@ -520,7 +520,12 @@ func (m configPanelModel) renderActionBar() string {
 		// Show editable port when in edit mode
 		portLabel = fmt.Sprintf("Port: %s_", m.editBuffer)
 	} else {
-		portLabel = fmt.Sprintf("Port: %d", m.config.Port)
+		// Display the actual port that will be used (auto-offset if needed)
+		displayPort := m.config.Port
+		if m.servers.IsPortInUse(displayPort) {
+			displayPort = m.servers.NextAvailablePort(displayPort)
+		}
+		portLabel = fmt.Sprintf("Port: %d", displayPort)
 	}
 	
 	trustLabel := "🔐 Trust: "

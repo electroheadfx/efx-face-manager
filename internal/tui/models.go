@@ -21,8 +21,9 @@ type templatesModel struct {
 }
 
 func newTemplatesModel(cfg *config.Config, store *model.Store) templatesModel {
+	templates, _ := model.LoadTemplates()
 	return templatesModel{
-		templates: model.DefaultTemplates(),
+		templates: templates,
 		selected:  0,
 		cfg:       cfg,
 		store:     store,
@@ -83,7 +84,7 @@ func (m templatesModel) View() string {
 	b.WriteString(subtitleStyle.Render("Select Template Model"))
 	b.WriteString("\n")
 	b.WriteString(sectionTitleStyle.Render(strings.Repeat("─", contentWidth-4)))
-	b.WriteString("\n\n")
+	b.WriteString("\n")
 
 	// Calculate column widths dynamically (total = contentWidth - 8 for margins/prefix)
 	totalWidth := contentWidth - 8
@@ -200,7 +201,7 @@ func (m modelsModel) View() string {
 	b.WriteString(subtitleStyle.Render("Select Installed Model"))
 	b.WriteString("\n")
 	b.WriteString(sectionTitleStyle.Render(strings.Repeat("─", contentWidth-4)))
-	b.WriteString("\n\n")
+	b.WriteString("\n")
 
 	// Model list
 	if len(m.models) == 0 {
