@@ -363,11 +363,21 @@ The built-in chat interface uses `opencode run` in non-interactive mode, providi
 
 Seamlessly integrate with **opencode** for AI-powered coding assistance:
 
-**Two Ways to Use Opencode:**
+**Three Ways to Use Opencode:**
 
 1. **Copy Command** (`o`) — Copies the opencode command with server configuration to your clipboard. Paste it in any terminal to start an opencode session connected to your running MLX server.
 
 2. **Run Inline** (`O`) — Suspends the TUI and launches opencode directly in your terminal. When you exit opencode, the TUI resumes automatically.
+
+3. **Web Interface** (`w`) — Launches opencode web server with your MLX model pre-configured. Opens a browser-based coding assistant interface.
+
+![Opencode Web](./src/img/opencode-web.png)
+
+**Opencode Web Features:**
+- Browser-based interface for AI-powered coding
+- Automatic model and provider configuration
+- Real-time session management
+- Select your project folder directly in the browser
 
 **How It Works:**
 
@@ -378,17 +388,19 @@ The integration automatically configures opencode to connect to your running MLX
 
 **Example Command:**
 ```bash
-OPENCODE_CONFIG_CONTENT='{"provider":{"mlx-community":{...}}}' opencode --model "mlx-community/Qwen3-0.6B-4bit"
+OPENCODE_CONFIG_CONTENT='{"model":"mlx-community/Qwen3-0.6B-4bit","provider":{"mlx-community":{...}}}' opencode --model "mlx-community/Qwen3-0.6B-4bit"
 ```
 
 **Shortcuts:**
 - `o` — Copy opencode command to clipboard
 - `O` — Run opencode inline (suspends TUI)
+- `w` — Launch opencode web interface
 
 **Use Cases:**
 - Code generation and completion with local models
 - Debugging assistance without cloud APIs
 - Private and offline AI coding assistance
+- Browser-based interface when terminal is not preferred
 
 ---
 
@@ -448,6 +460,7 @@ This frees up disk space by cleaning the Hugging Face cache.
 | `x` | Clear server logs |
 | `o` | Copy opencode command |
 | `O` | Run opencode inline |
+| `w` | Launch opencode web |
 | `g/G` | Jump to top/bottom of logs |
 | `1-9` | Quick select server |
 

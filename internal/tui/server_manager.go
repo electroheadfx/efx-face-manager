@@ -18,6 +18,7 @@ import (
 // Message types for server manager
 type clearStatusMsg struct{}
 type opencodeExitMsg struct{ err error }
+type opencodeWebExitMsg struct{ err error }
 
 // serverManagerModel handles the multi-server management view
 type serverManagerModel struct {
@@ -30,6 +31,10 @@ type serverManagerModel struct {
 	focusOnLogs       bool
 	statusMsg         string
 	opencodeInstalled bool
+	// Opencode web server state
+	opencodeWebCmd     *exec.Cmd
+	opencodeWebPort    int
+	opencodeWebRunning bool
 }
 
 func newServerManagerModel(servers *server.Manager, width, height int) serverManagerModel {
@@ -87,6 +92,19 @@ func (m serverManagerModel) Update(msg tea.Msg) (serverManagerModel, tea.Cmd) {
 			m.statusMsg = "opencode error"
 		}
 		return m, nil
+
+	case opencodeWebExitMsg:
+		// Opencode web server exited
+		m.opencodeWebRunning = false
+		m.opencodeWebCmd = nil
+		m.opencodeWebPort = 0
+		os.Unsetenv("OPENCODE_CONFIG_CONTENT")
+		if msg.err != nil {
+			m.statusMsg = "opencode web stopped"
+		} else {
+			m.statusMsg = "opencode web stopped"
+		}
+		return m, tea.Tick(2*time.Second, func(t time.Time) tea.Msg { return clearStatusMsg{} })
 
 	case serverUpdateMsg:
 		// Refresh logs if it's for the selected server
@@ -185,9 +203,67 @@ func (m serverManagerModel) Update(msg tea.Msg) (serverManagerModel, tea.Cmd) {
 					return m, cmd
 				}
 			}
+		case "w":
+			// Toggle opencode web server - only if opencode is installed and server selected
+			if m.opencodeInstalled && m.selectedPort > 0 {
+				if m.opencodeWebRunning {
+					// Stop the web server
+					if m.opencodeWebCmd != nil && m.opencodeWebCmd.Process != nil {
+						m.opencodeWebCmd.Process.Kill()
+					}
+					m.opencodeWebRunning = false
+					m.opencodeWebCmd = nil
+					m.opencodeWebPort = 0
+					os.Unsetenv("OPENCODE_CONFIG_CONTENT")
+					m.statusMsg = "opencode web stopped"
+					return m, tea.Tick(2*time.Second, func(t time.Time) tea.Msg { return clearStatusMsg{} })
+				} else {
+					// Start the web server
+					if inst := m.servers.Get(m.selectedPort); inst != nil {
+						// Load and merge configs with model field set
+						userConfig := opencode.LoadUserConfig()
+						providerConfig := opencode.GenerateProviderConfig(inst.Host, inst.Port, inst.Model)
+						mergedConfig := opencode.MergeConfigsWithModel(userConfig, providerConfig, inst.Model)
+						configJSON, _ := opencode.ConfigToJSON(mergedConfig)
+
+						// Find next available port starting from 4100 (avoid conflicts with other opencode instances)
+						webPort := m.servers.NextAvailablePort(4100)
+						workDir, _ := os.Getwd()
+
+						// Build the command string for clipboard (debug)
+						cmdStr := fmt.Sprintf("cd %s && OPENCODE_CONFIG_CONTENT='%s' opencode web --port %d", workDir, configJSON, webPort)
+						clipboard.Write(clipboard.FmtText, []byte(cmdStr))
+
+						webCmd := exec.Command("opencode", "web", "--port", fmt.Sprintf("%d", webPort))
+						webCmd.Env = append(os.Environ(), "OPENCODE_CONFIG_CONTENT="+configJSON)
+						// Set working directory to current directory
+						webCmd.Dir = workDir
+
+						// Start the process in background
+						if err := webCmd.Start(); err != nil {
+							m.statusMsg = "Failed to start opencode web"
+							return m, tea.Tick(2*time.Second, func(t time.Time) tea.Msg { return clearStatusMsg{} })
+						}
+
+						m.opencodeWebCmd = webCmd
+						m.opencodeWebPort = webPort
+						m.opencodeWebRunning = true
+						m.statusMsg = fmt.Sprintf("opencode web :%d (cmd copied)", webPort)
+
+						// Wait for process exit in background
+						return m, tea.Batch(
+							tea.Tick(2*time.Second, func(t time.Time) tea.Msg { return clearStatusMsg{} }),
+							func() tea.Msg {
+								err := webCmd.Wait()
+								return opencodeWebExitMsg{err: err}
+							},
+						)
+					}
+				}
+			}
 		case "c":
-			// Open chat with selected server
-			if m.selectedPort > 0 {
+			// Open chat with selected server (only if opencode is installed)
+			if m.opencodeInstalled && m.selectedPort > 0 {
 				if inst := m.servers.Get(m.selectedPort); inst != nil {
 					return m, func() tea.Msg {
 						return openChatMsg{host: inst.Host, port: inst.Port, modelName: inst.Model}
@@ -337,9 +413,9 @@ func (m serverManagerModel) View() string {
 	// Footer with shortcuts (directly after log panel - no extra newline)
 	var shortcuts string
 	if m.opencodeInstalled {
-		shortcuts = "[o] copy cmd  [O] opencode  [c] chat  [s] stop  [S] all  [n] new  [x] clear  [tab] logs  [esc] menu"
+		shortcuts = "[o] copy cmd  [O] opencode  [w] web  [c] chat  [s] stop  [S] all  [n] new  [x] clear  [tab] logs  [esc] menu"
 	} else {
-		shortcuts = "[c] chat  [s] stop  [S] all  [n] new  [x] clear  [tab] logs  [esc] menu"
+		shortcuts = "[s] stop  [S] all  [n] new  [x] clear  [tab] logs  [esc] menu"
 	}
 	b.WriteString(helpStyle.Render(shortcuts))
 
@@ -389,11 +465,16 @@ func (m serverManagerModel) renderServerDetails() string {
 		if inst := m.servers.Get(m.selectedPort); inst != nil {
 			b.WriteString(fmt.Sprintf("Model: %s\n", truncateStr(inst.Model, 35)))
 			b.WriteString(fmt.Sprintf("Type: %s  Port: %d  Host: %s\n", inst.Type, inst.Port, inst.Host))
+			// Show opencode web status
+			if m.opencodeWebRunning {
+				b.WriteString(successStyle.Render(fmt.Sprintf("opencode web: running :%d", m.opencodeWebPort)))
+			} else {
+				b.WriteString(statusMutedStyle.Render("opencode web: stopped"))
+			}
 		}
 	} else {
-		b.WriteString(statusMutedStyle.Render("No server selected\n"))
+		b.WriteString(statusMutedStyle.Render("No server selected"))
 	}
-	b.WriteString(sectionTitleStyle.Render("Actions") + " [s]Stop [S]ALL [n]New [m]Menu")
 	return b.String()
 }
 

@@ -52,6 +52,7 @@ func GenerateProviderConfig(host string, port int, modelName string) map[string]
 
 // MergeConfigs merges the user config with the generated provider config
 // The provider.mlx-community section is replaced with the generated config
+// The model field is set to use the mlx-community provider with the given model
 func MergeConfigs(userConfig map[string]interface{}, providerConfig map[string]interface{}) map[string]interface{} {
 	// If user config is empty, just wrap provider config
 	if len(userConfig) == 0 {
@@ -84,6 +85,14 @@ func MergeConfigs(userConfig map[string]interface{}, providerConfig map[string]i
 	}
 
 	result["provider"] = newProviderSection
+	return result
+}
+
+// MergeConfigsWithModel merges configs and sets the model field at root level
+func MergeConfigsWithModel(userConfig map[string]interface{}, providerConfig map[string]interface{}, modelName string) map[string]interface{} {
+	result := MergeConfigs(userConfig, providerConfig)
+	// Set the model field to use the mlx-community provider
+	result["model"] = "mlx-community/" + modelName
 	return result
 }
 

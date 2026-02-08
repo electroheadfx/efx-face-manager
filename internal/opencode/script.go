@@ -57,6 +57,13 @@ func ScriptPath(modelName string, port int) string {
 	return filepath.Join(RunnersDir(), filename)
 }
 
+// ScriptPathWeb returns the full path for a web runner script
+func ScriptPathWeb(modelName string, port int, webPort int) string {
+	sanitized := SanitizeModelName(modelName)
+	filename := fmt.Sprintf("opencode-runner-%s-port%d-web%d%s", sanitized, port, webPort, ScriptExtension())
+	return filepath.Join(RunnersDir(), filename)
+}
+
 // EnsureRunnersDir creates the runners directory if it doesn't exist
 func EnsureRunnersDir() error {
 	return os.MkdirAll(RunnersDir(), 0755)
@@ -68,6 +75,14 @@ func GenerateScriptContent(configJSON string, modelName string, platform string)
 		return generateWindowsScript(configJSON, modelName)
 	}
 	return generateUnixScript(configJSON, modelName)
+}
+
+// GenerateWebScriptContent creates the web script content based on platform
+func GenerateWebScriptContent(configJSON string, modelName string, webPort int, platform string) string {
+	if platform == "windows" {
+		return generateWindowsWebScript(configJSON, modelName, webPort)
+	}
+	return generateUnixWebScript(configJSON, modelName, webPort)
 }
 
 // generateUnixScript creates a bash script for macOS/Linux
@@ -87,6 +102,25 @@ func generateWindowsScript(configJSON string, modelName string) string {
 set OPENCODE_CONFIG_CONTENT=%s
 opencode --model "mlx-community/%s"
 `, configJSON, modelName)
+}
+
+// generateUnixWebScript creates a bash web script for macOS/Linux
+func generateUnixWebScript(configJSON string, modelName string, webPort int) string {
+	// Escape single quotes in JSON for bash
+	escapedJSON := strings.ReplaceAll(configJSON, "'", "'\"'\"'")
+
+	return fmt.Sprintf(`#!/bin/bash
+export OPENCODE_CONFIG_CONTENT='%s'
+exec opencode web --port %d
+`, escapedJSON, webPort)
+}
+
+// generateWindowsWebScript creates a batch web script for Windows
+func generateWindowsWebScript(configJSON string, modelName string, webPort int) string {
+	return fmt.Sprintf(`@echo off
+set OPENCODE_CONFIG_CONTENT=%s
+opencode web --port %d
+`, configJSON, webPort)
 }
 
 // WriteScript writes the script to disk and sets execute permissions on Unix
@@ -128,6 +162,38 @@ func CreateRunnerScript(host string, port int, modelName string) (string, error)
 
 	// Get script path
 	scriptPath := ScriptPath(modelName, port)
+
+	// Write script
+	if err := WriteScript(scriptPath, scriptContent); err != nil {
+		return "", err
+	}
+
+	return scriptPath, nil
+}
+
+// CreateWebRunnerScript creates a web runner script for opencode web
+func CreateWebRunnerScript(host string, port int, modelName string, webPort int) (string, error) {
+	// Load existing user config
+	userConfig := LoadUserConfig()
+
+	// Generate provider config
+	providerConfig := GenerateProviderConfig(host, port, modelName)
+
+	// Merge configs with model field set
+	mergedConfig := MergeConfigsWithModel(userConfig, providerConfig, modelName)
+
+	// Convert to JSON
+	configJSON, err := ConfigToJSON(mergedConfig)
+	if err != nil {
+		return "", fmt.Errorf("failed to serialize config: %w", err)
+	}
+
+	// Generate web script content
+	platform := DetectPlatform()
+	scriptContent := GenerateWebScriptContent(configJSON, modelName, webPort, platform)
+
+	// Get script path
+	scriptPath := ScriptPathWeb(modelName, port, webPort)
 
 	// Write script
 	if err := WriteScript(scriptPath, scriptContent); err != nil {
