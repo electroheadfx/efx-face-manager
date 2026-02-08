@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/lmarques/efx-face-manager/internal/opencode"
 	"github.com/lmarques/efx-face-manager/internal/server"
 	"golang.design/x/clipboard"
 )
@@ -18,22 +19,17 @@ import (
 type clearStatusMsg struct{}
 type opencodeExitMsg struct{ err error }
 
-// generateOpencodeConfig creates the JSON config for OPENCODE_CONFIG_CONTENT
-func generateOpencodeConfig(host string, port int, modelName string) string {
-	return fmt.Sprintf(`{"provider":{"mlx-community":{"npm":"@ai-sdk/openai-compatible","name":"local-mlx-model","options":{"baseURL":"http://%s:%d/v1"},"models":{"%s":{"name":"mlx-server/%s"}}}}}`,
-		host, port, modelName, modelName)
-}
-
 // serverManagerModel handles the multi-server management view
 type serverManagerModel struct {
-	servers      *server.Manager
-	width        int
-	height       int
-	selectedIdx  int
-	selectedPort int
-	viewport     viewport.Model
-	focusOnLogs  bool
-	statusMsg    string
+	servers           *server.Manager
+	width             int
+	height            int
+	selectedIdx       int
+	selectedPort      int
+	viewport          viewport.Model
+	focusOnLogs       bool
+	statusMsg         string
+	opencodeInstalled bool
 }
 
 func newServerManagerModel(servers *server.Manager, width, height int) serverManagerModel {
@@ -51,11 +47,15 @@ func newServerManagerModel(servers *server.Manager, width, height int) serverMan
 	}
 	vp := viewport.New(contentWidth-6, vpHeight)
 
+	// Check if opencode is installed
+	_, opencodeErr := exec.LookPath("opencode")
+
 	m := serverManagerModel{
-		servers:  servers,
-		width:    width,
-		height:   height,
-		viewport: vp,
+		servers:           servers,
+		width:             width,
+		height:            height,
+		viewport:          vp,
+		opencodeInstalled: opencodeErr == nil,
 	}
 
 	// Select first server if any
@@ -147,25 +147,33 @@ func (m serverManagerModel) Update(msg tea.Msg) (serverManagerModel, tea.Cmd) {
 			// Open new server dialog
 			return m, func() tea.Msg { return openNewServerMsg{} }
 		case "o":
-			// Copy opencode command to clipboard
-			if m.selectedPort > 0 {
+			// Copy opencode command to clipboard (only if opencode is installed)
+			if m.opencodeInstalled && m.selectedPort > 0 {
 				if inst := m.servers.Get(m.selectedPort); inst != nil {
 					workDir, _ := os.Getwd()
-					// Generate opencode config JSON for OPENCODE_CONFIG_CONTENT
-					configJSON := generateOpencodeConfig(inst.Host, inst.Port, inst.Model)
-					// Command with config injection via env var
-					cmdStr := fmt.Sprintf("cd %s && OPENCODE_CONFIG_CONTENT='%s' opencode --model \"mlx-community/%s\"",
-						workDir, configJSON, inst.Model)
+					// Create runner script with merged config
+					scriptPath, err := opencode.CreateRunnerScript(inst.Host, inst.Port, inst.Model)
+					if err != nil {
+						m.statusMsg = "Failed to create runner script"
+						return m, tea.Tick(2*time.Second, func(t time.Time) tea.Msg { return clearStatusMsg{} })
+					}
+					// Command references the runner script
+					cmdStr := fmt.Sprintf("cd %s && %s", workDir, scriptPath)
 					clipboard.Write(clipboard.FmtText, []byte(cmdStr))
-					m.statusMsg = "Copied to clipboard!"
+					m.statusMsg = "Opencode runner copied to clipboard!"
 					return m, tea.Tick(2*time.Second, func(t time.Time) tea.Msg { return clearStatusMsg{} })
 				}
 			}
 		case "O":
-			// Run opencode inline (suspends TUI)
-			if m.selectedPort > 0 {
+			// Run opencode inline (suspends TUI) - only if opencode is installed
+			if m.opencodeInstalled && m.selectedPort > 0 {
 				if inst := m.servers.Get(m.selectedPort); inst != nil {
-					configJSON := generateOpencodeConfig(inst.Host, inst.Port, inst.Model)
+					// Load and merge configs like the script generation does
+					userConfig := opencode.LoadUserConfig()
+					providerConfig := opencode.GenerateProviderConfig(inst.Host, inst.Port, inst.Model)
+					mergedConfig := opencode.MergeConfigs(userConfig, providerConfig)
+					configJSON, _ := opencode.ConfigToJSON(mergedConfig)
+
 					cmd := tea.ExecProcess(
 						exec.Command("opencode", "--model", fmt.Sprintf("mlx-community/%s", inst.Model)),
 						func(err error) tea.Msg {
@@ -251,11 +259,15 @@ func (m serverManagerModel) View() string {
 	// Add leading newlines to prevent content from being cut off at top
 	b.WriteString("\n\n\n")
 
-	// Title line at top - appStyle provides padding
+	// Title line at top
+	titleText := "Server Manager"
 	if serverCount > 0 {
-		b.WriteString(subtitleStyle.Render(fmt.Sprintf("Server Manager (%d running)", serverCount)))
-	} else {
-		b.WriteString(subtitleStyle.Render("Server Manager"))
+		titleText = fmt.Sprintf("Server Manager (%d running)", serverCount)
+	}
+	b.WriteString(subtitleStyle.Render(titleText))
+	// Status message on next line (in green, left-aligned)
+	if m.statusMsg != "" {
+		b.WriteString("\n" + successStyle.Render(m.statusMsg))
 	}
 	b.WriteString("\n")
 
@@ -323,12 +335,13 @@ func (m serverManagerModel) View() string {
 	b.WriteString(logPanel)
 
 	// Footer with shortcuts (directly after log panel - no extra newline)
-	if m.statusMsg != "" {
-		b.WriteString(successStyle.Render(m.statusMsg) + "  ")
-		b.WriteString(helpStyle.Render("[o] copy cmd  [O] opencode  [c] chat  [s] stop  [S] all  [n] new  [x] clear  [tab] logs  [esc] menu"))
+	var shortcuts string
+	if m.opencodeInstalled {
+		shortcuts = "[o] copy cmd  [O] opencode  [c] chat  [s] stop  [S] all  [n] new  [x] clear  [tab] logs  [esc] menu"
 	} else {
-		b.WriteString(helpStyle.Render("[o] copy cmd  [O] opencode  [c] chat  [s] stop  [S] all  [n] new  [x] clear  [tab] logs  [esc] menu"))
+		shortcuts = "[c] chat  [s] stop  [S] all  [n] new  [x] clear  [tab] logs  [esc] menu"
 	}
+	b.WriteString(helpStyle.Render(shortcuts))
 
 	return appStyle.Render(b.String())
 }
