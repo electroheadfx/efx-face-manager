@@ -2,7 +2,7 @@
 
 ![efx-face logo](./src/img/logo.png)
 
-**Version 0.2.0** | A beautiful TUI for managing MLX models on Apple Silicon
+**Version 0.3.0** | A beautiful TUI for managing MLX models on Apple Silicon
 
 Browse, install, and run MLX-optimized models from Hugging Face with an intuitive terminal interface built with [Bubbletea](https://github.com/charmbracelet/bubbletea) and [Lipgloss](https://github.com/charmbracelet/lipgloss).
 
@@ -17,7 +17,10 @@ Browse, install, and run MLX-optimized models from Hugging Face with an intuitiv
   - [Home Screen](#home-screen)
   - [Running Models with Templates](#running-models-with-templates)
   - [Running Installed Models](#running-installed-models)
+  - [Installing New Models](#installing-new-models)
   - [Server Management](#server-management)
+  - [Chat Mode](#chat-mode)
+  - [Opencode Integration](#opencode-integration)
   - [Settings](#settings)
   - [Uninstalling Models](#uninstalling-models)
 - [Keyboard Reference](#keyboard-reference)
@@ -43,6 +46,13 @@ Browse, install, and run MLX-optimized models from Hugging Face with an intuitiv
 - **Real-time Logs** — View server output with scrollable viewport
 - **Server Switching** — Switch between running servers to view their logs
 - **Graceful Shutdown** — Stop individual servers or all at once
+
+### Chat & Opencode Integration
+- **Built-in Chat** — Converse with running models directly in the TUI
+- **Conversation History** — Messages persist across sessions in JSON files
+- **Markdown Rendering** — AI responses with syntax-highlighted code blocks
+- **Opencode Support** — Launch opencode inline or copy command to clipboard
+- **Pagination Mode** — Browse conversation exchanges one at a time
 
 ### Configuration Options
 - **6 Model Type Presets**: `lm`, `multimodal`, `image-generation`, `image-edit`, `embeddings`, `whisper`
@@ -136,6 +146,18 @@ Or use pipx: `pipx install mlx-openai-server`
 brew install huggingface-cli
 # Optional: hf auth login
 ```
+
+### Opencode (Optional)
+
+Required for the **Chat Mode** and **Opencode Integration** features in Server Manager:
+
+```bash
+# Install opencode CLI
+npm install -g opencode
+# or: npx opencode
+```
+
+Opencode provides AI-powered coding assistance that can connect to your running MLX servers.
 
 ---
 
@@ -231,6 +253,35 @@ Each type shows different configuration options in the next screen.
 
 ---
 
+### Installing New Models
+
+![Install Models](./src/img/install-models.png)
+
+Browse and download models from **Hugging Face** with the integrated search:
+
+**Search Features:**
+- **Live Search** — Type to filter models in real-time
+- **Multiple Sources** — Switch between mlx-community, lmstudio-community, or all models using `Tab`
+- **Model Info** — View download counts and model details before installing
+- **Pagination** — Navigate through thousands of models with `←/→`
+
+**How to Install:**
+1. Select "Install a New Model" from the home screen
+2. Browse or search for models using the search bar
+3. Press `Enter` on a model to view details
+4. Press `i` to start the download
+5. The model is automatically symlinked to your storage directory
+
+**Shortcuts:**
+- `Tab` — Switch between model sources (mlx-community, lmstudio, all)
+- `/` — Focus search input
+- `Enter` — View model details
+- `i` — Install selected model
+- `o` — Open model page on Hugging Face
+- `←/→` — Navigate pages
+
+---
+
 ### Server Management
 
 #### Single Server View
@@ -273,6 +324,74 @@ This is perfect for:
 
 ---
 
+### Chat Mode
+
+![Chat Mode](./src/img/chat-mode.png)
+
+**Chat directly with your running MLX models** without leaving the TUI:
+
+The built-in chat interface uses `opencode run` in non-interactive mode, providing a lightweight way to converse with your models while maintaining conversation history.
+
+**Features:**
+- **Conversation History** — Messages are saved to JSON files and persist across sessions
+- **Markdown Rendering** — AI responses are rendered with syntax highlighting (Dracula theme)
+- **Code Blocks** — Automatic language detection for code snippets
+- **Pagination Mode** — Browse through conversation exchanges with `Ctrl+P`
+- **Multiple Conversations** — Access chat history with `Ctrl+L`
+
+**Chat Panel Layout:**
+- **Top** — Chat viewport showing conversation with scrollable history
+- **Bottom** — Input field for typing messages
+- **Focus Toggle** — `Tab` switches focus between viewport and input
+
+**Shortcuts:**
+- `Enter` — Send message
+- `Tab` — Toggle focus between viewport and input
+- `Ctrl+P` — Toggle pagination mode (browse exchanges one at a time)
+- `←/→` — Navigate between exchanges (in pagination mode)
+- `Ctrl+L` — Open chat history
+- `Ctrl+N` — Start new conversation
+- `Ctrl+D` — Delete current conversation
+- `↑/↓` — Scroll through messages
+- `ESC` — Return to server manager
+
+---
+
+### Opencode Integration
+
+![Opencode](./src/img/opencode.png)
+
+Seamlessly integrate with **opencode** for AI-powered coding assistance:
+
+**Two Ways to Use Opencode:**
+
+1. **Copy Command** (`o`) — Copies the opencode command with server configuration to your clipboard. Paste it in any terminal to start an opencode session connected to your running MLX server.
+
+2. **Run Inline** (`O`) — Suspends the TUI and launches opencode directly in your terminal. When you exit opencode, the TUI resumes automatically.
+
+**How It Works:**
+
+The integration automatically configures opencode to connect to your running MLX server by:
+- Setting `OPENCODE_CONFIG_CONTENT` environment variable
+- Configuring the correct host, port, and model name
+- Using the OpenAI-compatible API endpoint
+
+**Example Command:**
+```bash
+OPENCODE_CONFIG_CONTENT='{"provider":{"mlx-community":{...}}}' opencode --model "mlx-community/Qwen3-0.6B-4bit"
+```
+
+**Shortcuts:**
+- `o` — Copy opencode command to clipboard
+- `O` — Run opencode inline (suspends TUI)
+
+**Use Cases:**
+- Code generation and completion with local models
+- Debugging assistance without cloud APIs
+- Private and offline AI coding assistance
+
+---
+
 ### Settings
 
 ![Settings](./src/img/settings.png)
@@ -309,6 +428,7 @@ This frees up disk space by cleaning the Hugging Face cache.
 
 ## Keyboard Reference
 
+### Global
 | Key | Action |
 |-----|--------|
 | `↑/↓` | Navigate lists and options |
@@ -317,11 +437,38 @@ This frees up disk space by cleaning the Hugging Face cache.
 | `←/→` | Switch pages / columns |
 | `ESC` | Go back one screen |
 | `q` | Quit / Return to home |
+
+### Server Manager
+| Key | Action |
+|-----|--------|
 | `s` | Stop selected server |
 | `S` | Stop ALL servers |
 | `n` | Start new server |
-| `c` | Clear server logs |
+| `c` | Open chat with server |
+| `x` | Clear server logs |
+| `o` | Copy opencode command |
+| `O` | Run opencode inline |
 | `g/G` | Jump to top/bottom of logs |
+| `1-9` | Quick select server |
+
+### Chat Mode
+| Key | Action |
+|-----|--------|
+| `Enter` | Send message |
+| `Tab` | Toggle focus (viewport/input) |
+| `Ctrl+P` | Toggle pagination mode |
+| `←/→` | Navigate exchanges (paginated) |
+| `Ctrl+L` | Open chat history |
+| `Ctrl+N` | New conversation |
+| `Ctrl+D` | Delete conversation |
+
+### Model Search
+| Key | Action |
+|-----|--------|
+| `/` | Focus search input |
+| `Tab` | Switch model source |
+| `i` | Install selected model |
+| `o` | Open on Hugging Face |
 
 ---
 

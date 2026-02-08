@@ -38,10 +38,15 @@ func DefaultConfig() *Config {
 	}
 }
 
+// ConfigDir returns the config directory path
+func ConfigDir() string {
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".config", "efx-face-manager")
+}
+
 // ConfigPath returns the path to the config file
 func ConfigPath() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".config", "efx-face-manager", "config.json")
+	return filepath.Join(ConfigDir(), "config.json")
 }
 
 // LegacyConfigPath returns the path to the legacy config file
@@ -58,17 +63,28 @@ func Load() (*Config, error) {
 	if data, err := os.ReadFile(configPath); err == nil {
 		var cfg Config
 		if err := json.Unmarshal(data, &cfg); err == nil {
+			// Cleanup legacy chat storage on startup
+			CleanupLegacyChatStorage()
 			return &cfg, nil
 		}
 	}
 	
-	// Try legacy config (just a path string)
+	// Try legacy config (just a path string) and MIGRATE
 	legacyPath := LegacyConfigPath()
 	if data, err := os.ReadFile(legacyPath); err == nil {
 		cfg := DefaultConfig()
 		// Trim whitespace/newlines from legacy config
 		cfg.ModelDir = strings.TrimSpace(string(data))
 		cfg.AutoDetectPath = false
+		
+		// MIGRATE: Save to new location
+		if err := cfg.Save(); err == nil {
+			// DELETE legacy file after successful migration
+			os.Remove(legacyPath)
+		}
+		
+		// Cleanup legacy chat storage on startup
+		CleanupLegacyChatStorage()
 		return cfg, nil
 	}
 	
@@ -128,4 +144,12 @@ func DisplayPath(path string) string {
 func IsExternalMounted() bool {
 	_, err := os.Stat("/Volumes/T7")
 	return err == nil
+}
+
+// CleanupLegacyChatStorage removes the legacy chat storage folder
+func CleanupLegacyChatStorage() {
+	chatDir := filepath.Join(ConfigDir(), "chat")
+	if _, err := os.Stat(chatDir); err == nil {
+		os.RemoveAll(chatDir)
+	}
 }

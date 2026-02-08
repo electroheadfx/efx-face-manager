@@ -17,7 +17,7 @@ const (
 	menuRunInstalled
 	menuUninstall
 	menuServerManager
-	menuChat
+	menuTemplates
 	menuConfigStorage
 	menuExit
 )
@@ -31,10 +31,10 @@ var box1Grid = [][]int{
 }
 
 // Box 2: 2-col grid
-// Row 0: [Server Manager, Chat]
+// Row 0: [Server Manager, Templates]
 // Row 1: [Setup, Exit]
 var box2Grid = [][]int{
-	{menuServerManager, menuChat},
+	{menuServerManager, menuTemplates},
 	{menuConfigStorage, menuExit},
 }
 
@@ -44,7 +44,7 @@ var menuItems = []string{
 	"▶  Run a model",
 	"✕  Remove a model",
 	"◉  Server Manager",
-	"💬 Chat with LM",
+	"📋 Templates",
 	"⚙  Setup model path",
 	"✖  Exit",
 }
@@ -281,13 +281,8 @@ func (m menuModel) Update(msg tea.Msg) (menuModel, tea.Cmd) {
 				return m, func() tea.Msg { return openUninstallMsg{} }
 			case menuServerManager:
 				return m, func() tea.Msg { return openServerManagerMsg{} }
-			case menuChat:
-				// Open chat - goes to server manager if servers running, user can pick
-				if m.serverCount > 0 {
-					return m, func() tea.Msg { return openServerManagerMsg{} }
-				}
-				// No servers running - show server manager anyway so user can start one
-				return m, func() tea.Msg { return openServerManagerMsg{} }
+			case menuTemplates:
+				return m, func() tea.Msg { return openTemplateManagerMsg{} }
 			case menuConfigStorage:
 				return m, func() tea.Msg { return openStorageConfigMsg{} }
 			case menuExit:

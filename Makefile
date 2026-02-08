@@ -1,4 +1,4 @@
-VERSION := 0.2.0
+VERSION := 0.3.0
 BINARY := efx-face
 BUILD_DIR := bin
 LDFLAGS := -ldflags "-s -w -X main.version=$(VERSION)"

@@ -10,7 +10,7 @@ import (
 	"github.com/lmarques/efx-face-manager/internal/server"
 )
 
-const version = "0.2.0"
+const version = "0.3.0"
 
 // View states
 type viewState int
@@ -27,7 +27,9 @@ const (
 	viewNewServer
 	viewStorageConfig
 	viewUninstall
+	viewTemplateManager
 	viewChat
+	viewChatHistory
 )
 
 // Main application model
@@ -45,18 +47,20 @@ type appModel struct {
 	servers *server.Manager
 
 	// Sub-models
-	menuModel          menuModel
-	templatesModel     templatesModel
-	modelsModel        modelsModel
-	modelTypeModel     modelTypeModel
-	configPanelModel   configPanelModel
-	serverManagerModel serverManagerModel
-	storageModel       storageModel
-	searchModel        searchModel
-	uninstallModel     uninstallModel
-	detailsModel       detailsModel
-	serverNewModel     serverNewModel
-	chatModel          chatModel
+	menuModel            menuModel
+	templatesModel       templatesModel
+	modelsModel          modelsModel
+	modelTypeModel       modelTypeModel
+	configPanelModel     configPanelModel
+	serverManagerModel   serverManagerModel
+	storageModel         storageModel
+	searchModel          searchModel
+	uninstallModel       uninstallModel
+	detailsModel         detailsModel
+	serverNewModel       serverNewModel
+	templateManagerModel templateManagerModel
+	chatModel            chatModel
+	chatHistoryModel     chatHistoryModel
 }
 
 // Initialize the main model
@@ -101,8 +105,8 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		// Handle ESC globally for ALL views EXCEPT viewSearch and viewChat (which handle their own ESC)
-		if msg.String() == "esc" && m.state != viewMenu && m.state != viewSearch && m.state != viewChat {
+		// Handle ESC globally for ALL views EXCEPT viewSearch (which handles its own ESC)
+		if msg.String() == "esc" && m.state != viewMenu && m.state != viewSearch {
 			prevState, newHistory := popHistory(m.history)
 			m.history = newHistory
 			m.state = prevState
@@ -185,9 +189,6 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, listenForServerUpdates(m.servers))
 		if m.state == viewServerManager {
 			m.serverManagerModel, _ = m.serverManagerModel.Update(msg)
-		}
-		if m.state == viewChat {
-			m.chatModel, _ = m.chatModel.Update(msg)
 		}
 		// Update menu to show server count
 		m.menuModel.serverCount = m.servers.Count()
@@ -314,16 +315,52 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.configPanelModel.height = m.height
 		return m, nil
 
+	case openTemplateManagerMsg:
+		m.history = pushHistory(m.history, m.state)
+		m.state = viewTemplateManager
+		m.templateManagerModel = newTemplateManagerModel(m.cfg, m.store)
+		m.templateManagerModel.width = m.width
+		m.templateManagerModel.height = m.height
+		return m, nil
+
 	case openChatMsg:
-		// Open chat window for a server
 		m.history = pushHistory(m.history, m.state)
 		m.state = viewChat
-		serverName := ""
-		if inst := m.servers.Get(msg.port); inst != nil {
-			serverName = inst.Model
-		}
-		m.chatModel = newChatModel(msg.port, serverName, m.servers, msg.conversationID, m.width, m.height)
+		m.chatModel = newChatModel(msg.host, msg.port, msg.modelName, m.width, m.height)
+		return m, m.chatModel.Init()
+
+	case openChatHistoryMsg:
+		m.history = pushHistory(m.history, m.state)
+		m.state = viewChatHistory
+		m.chatHistoryModel = newChatHistoryModel(m.chatModel.storage, msg.host, msg.port, msg.modelName, m.width, m.height)
 		return m, nil
+
+	case loadChatMsg:
+		// Load a conversation into chat view
+		m.state = viewChat
+		if msg.conversation != nil {
+			// Load existing conversation
+			m.chatModel = newChatModelWithConversation(
+				m.chatHistoryModel.returnHost,
+				m.chatHistoryModel.returnPort,
+				m.chatHistoryModel.returnModelName,
+				msg.conversation,
+				m.width, m.height,
+			)
+		} else {
+			// Create new conversation
+			m.chatModel = newChatModel(
+				m.chatHistoryModel.returnHost,
+				m.chatHistoryModel.returnPort,
+				m.chatHistoryModel.returnModelName,
+				m.width, m.height,
+			)
+		}
+		// Pop chat history from history since we're going back to chat
+		if len(m.history) > 0 {
+			m.history = m.history[:len(m.history)-1]
+		}
+		return m, m.chatModel.Init()
 	}
 
 	// Delegate to sub-models
@@ -351,8 +388,12 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.detailsModel, cmd = m.detailsModel.Update(msg)
 	case viewNewServer:
 		m.serverNewModel, cmd = m.serverNewModel.Update(msg)
+	case viewTemplateManager:
+		m.templateManagerModel, cmd = m.templateManagerModel.Update(msg)
 	case viewChat:
 		m.chatModel, cmd = m.chatModel.Update(msg)
+	case viewChatHistory:
+		m.chatHistoryModel, cmd = m.chatHistoryModel.Update(msg)
 	}
 	cmds = append(cmds, cmd)
 
@@ -383,8 +424,12 @@ func (m appModel) View() string {
 		return m.detailsModel.View()
 	case viewNewServer:
 		return m.serverNewModel.View()
+	case viewTemplateManager:
+		return m.templateManagerModel.View()
 	case viewChat:
 		return m.chatModel.View()
+	case viewChatHistory:
+		return m.chatHistoryModel.View()
 	default:
 		return m.menuModel.View()
 	}
@@ -400,6 +445,17 @@ type openStorageConfigMsg struct{}
 type openInstallMsg struct{}
 type openUninstallMsg struct{}
 type openNewServerMsg struct{}
+type openTemplateManagerMsg struct{}
+type openChatMsg struct {
+	host      string
+	port      int
+	modelName string
+}
+type openChatHistoryMsg struct {
+	host      string
+	port      int
+	modelName string
+}
 type serverStartedMsg struct{ port int }
 type configSavedMsg struct{ config *config.Config }
 type serverUpdateMsg server.Update

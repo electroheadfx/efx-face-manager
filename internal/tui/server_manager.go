@@ -2,13 +2,27 @@ package tui
 
 import (
 	"fmt"
+	"os"
+	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/lmarques/efx-face-manager/internal/server"
+	"golang.design/x/clipboard"
 )
+
+// Message types for server manager
+type clearStatusMsg struct{}
+type opencodeExitMsg struct{ err error }
+
+// generateOpencodeConfig creates the JSON config for OPENCODE_CONFIG_CONTENT
+func generateOpencodeConfig(host string, port int, modelName string) string {
+	return fmt.Sprintf(`{"provider":{"mlx-community":{"npm":"@ai-sdk/openai-compatible","name":"local-mlx-model","options":{"baseURL":"http://%s:%d/v1"},"models":{"%s":{"name":"mlx-server/%s"}}}}}`,
+		host, port, modelName, modelName)
+}
 
 // serverManagerModel handles the multi-server management view
 type serverManagerModel struct {
@@ -19,16 +33,23 @@ type serverManagerModel struct {
 	selectedPort int
 	viewport     viewport.Model
 	focusOnLogs  bool
+	statusMsg    string
 }
 
 func newServerManagerModel(servers *server.Manager, width, height int) serverManagerModel {
 	// Calculate proper viewport dimensions to prevent crash
 	contentWidth := width - 4
-	logPanelHeight := height - 8 - 10 // control height (8) + title/borders/footer/leading newlines (10)
+	controlPanelHeight := 8
+	logPanelHeight := height - controlPanelHeight - 10 // Account for title, borders, footer, leading newlines
 	if logPanelHeight < 5 {
 		logPanelHeight = 5
 	}
-	vp := viewport.New(contentWidth-4, logPanelHeight-3) // Account for padding and title
+	// Viewport height: logPanelHeight - 2 (border) - 1 (title+newline) = maximize log space
+	vpHeight := logPanelHeight - 3
+	if vpHeight < 3 {
+		vpHeight = 3
+	}
+	vp := viewport.New(contentWidth-6, vpHeight)
 
 	m := serverManagerModel{
 		servers:  servers,
@@ -55,6 +76,18 @@ func (m serverManagerModel) Update(msg tea.Msg) (serverManagerModel, tea.Cmd) {
 	var cmd tea.Cmd
 
 	switch msg := msg.(type) {
+	case clearStatusMsg:
+		m.statusMsg = ""
+		return m, nil
+
+	case opencodeExitMsg:
+		// Opencode exited, clear env var and refresh
+		os.Unsetenv("OPENCODE_CONFIG_CONTENT")
+		if msg.err != nil {
+			m.statusMsg = "opencode error"
+		}
+		return m, nil
+
 	case serverUpdateMsg:
 		// Refresh logs if it's for the selected server
 		if msg.Port == m.selectedPort {
@@ -113,10 +146,45 @@ func (m serverManagerModel) Update(msg tea.Msg) (serverManagerModel, tea.Cmd) {
 		case "n":
 			// Open new server dialog
 			return m, func() tea.Msg { return openNewServerMsg{} }
-		case "c":
-			// Open chat for selected server
+		case "o":
+			// Copy opencode command to clipboard
 			if m.selectedPort > 0 {
-				return m, func() tea.Msg { return openChatMsg{port: m.selectedPort} }
+				if inst := m.servers.Get(m.selectedPort); inst != nil {
+					workDir, _ := os.Getwd()
+					// Generate opencode config JSON for OPENCODE_CONFIG_CONTENT
+					configJSON := generateOpencodeConfig(inst.Host, inst.Port, inst.Model)
+					// Command with config injection via env var
+					cmdStr := fmt.Sprintf("cd %s && OPENCODE_CONFIG_CONTENT='%s' opencode --model \"mlx-community/%s\"",
+						workDir, configJSON, inst.Model)
+					clipboard.Write(clipboard.FmtText, []byte(cmdStr))
+					m.statusMsg = "Copied to clipboard!"
+					return m, tea.Tick(2*time.Second, func(t time.Time) tea.Msg { return clearStatusMsg{} })
+				}
+			}
+		case "O":
+			// Run opencode inline (suspends TUI)
+			if m.selectedPort > 0 {
+				if inst := m.servers.Get(m.selectedPort); inst != nil {
+					configJSON := generateOpencodeConfig(inst.Host, inst.Port, inst.Model)
+					cmd := tea.ExecProcess(
+						exec.Command("opencode", "--model", fmt.Sprintf("mlx-community/%s", inst.Model)),
+						func(err error) tea.Msg {
+							return opencodeExitMsg{err: err}
+						},
+					)
+					// Set environment variable for the command
+					os.Setenv("OPENCODE_CONFIG_CONTENT", configJSON)
+					return m, cmd
+				}
+			}
+		case "c":
+			// Open chat with selected server
+			if m.selectedPort > 0 {
+				if inst := m.servers.Get(m.selectedPort); inst != nil {
+					return m, func() tea.Msg {
+						return openChatMsg{host: inst.Host, port: inst.Port, modelName: inst.Model}
+					}
+				}
 			}
 		case "x":
 			// Clear logs
@@ -150,12 +218,18 @@ func (m serverManagerModel) Update(msg tea.Msg) (serverManagerModel, tea.Cmd) {
 		m.height = msg.Height
 		// Update viewport dimensions to match new layout
 		contentWidth := msg.Width - 4
-		logPanelHeight := msg.Height - 8 - 7 // control height (8) + title/borders/footer (7)
+		controlPanelHeight := 8
+		logPanelHeight := msg.Height - controlPanelHeight - 10 // Account for title, borders, footer, leading newlines
 		if logPanelHeight < 5 {
 			logPanelHeight = 5
 		}
-		m.viewport.Width = contentWidth - 4
-		m.viewport.Height = logPanelHeight - 3 // Account for padding and title
+		// Viewport height: logPanelHeight - 2 (border) - 1 (title+newline) = maximize log space
+		vpHeight := logPanelHeight - 3
+		if vpHeight < 3 {
+			vpHeight = 3
+		}
+		m.viewport.Width = contentWidth - 6
+		m.viewport.Height = vpHeight
 	}
 
 	// Update viewport for scroll
@@ -248,9 +322,13 @@ func (m serverManagerModel) View() string {
 
 	b.WriteString(logPanel)
 
-	// Footer with shortcuts
-	b.WriteString("\n")
-	b.WriteString(helpStyle.Render("[↑/↓] select server  [s] stop  [S] stop all  [n] new  [c] chat  [x] clear  [tab] focus logs  [esc] menu"))
+	// Footer with shortcuts (directly after log panel - no extra newline)
+	if m.statusMsg != "" {
+		b.WriteString(successStyle.Render(m.statusMsg) + "  ")
+		b.WriteString(helpStyle.Render("[o] copy cmd  [O] opencode  [c] chat  [s] stop  [S] all  [n] new  [x] clear  [tab] logs  [esc] menu"))
+	} else {
+		b.WriteString(helpStyle.Render("[o] copy cmd  [O] opencode  [c] chat  [s] stop  [S] all  [n] new  [x] clear  [tab] logs  [esc] menu"))
+	}
 
 	return appStyle.Render(b.String())
 }

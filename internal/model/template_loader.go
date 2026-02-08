@@ -84,3 +84,57 @@ func SaveTemplates(templates []Template) error {
 	
 	return os.WriteFile(templateFile, data, 0644)
 }
+
+// DeleteTemplate removes a template by name
+func DeleteTemplate(name string) error {
+	templates, err := LoadTemplates()
+	if err != nil {
+		return err
+	}
+
+	// Filter out the template to delete
+	var remaining []Template
+	for _, t := range templates {
+		if t.Name != name {
+			remaining = append(remaining, t)
+		}
+	}
+
+	return SaveTemplates(remaining)
+}
+
+// DeleteTemplates removes multiple templates by name
+func DeleteTemplates(names []string) error {
+	templates, err := LoadTemplates()
+	if err != nil {
+		return err
+	}
+
+	// Create a set of names to delete for faster lookup
+	toDelete := make(map[string]bool)
+	for _, name := range names {
+		toDelete[name] = true
+	}
+
+	// Filter out templates to delete
+	var remaining []Template
+	for _, t := range templates {
+		if !toDelete[t.Name] {
+			remaining = append(remaining, t)
+		}
+	}
+
+	return SaveTemplates(remaining)
+}
+
+// FindTemplatesForModel finds all templates that reference a given model
+func FindTemplatesForModel(modelName string) []Template {
+	templates, _ := LoadTemplates()
+	var found []Template
+	for _, t := range templates {
+		if t.ModelName == modelName {
+			found = append(found, t)
+		}
+	}
+	return found
+}

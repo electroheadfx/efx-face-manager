@@ -1,232 +1,202 @@
 package chat
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
-	"strconv"
-	"strings"
 	"time"
 )
 
 // Message represents a single chat message
 type Message struct {
-	Role      string    `json:"role"` // "user", "assistant", "system"
+	Role      string    `json:"role"`      // "user" or "assistant"
 	Content   string    `json:"content"`
 	Timestamp time.Time `json:"timestamp"`
 }
 
 // Conversation represents a chat conversation
 type Conversation struct {
-	ID        string    `json:"id"`    // "chat-001"
-	Title     string    `json:"title"` // User or AI generated
-	Port      int       `json:"port"`  // Server port
-	Model     string    `json:"model"` // Model name
+	ID        string    `json:"id"`
+	Title     string    `json:"title"`
+	Model     string    `json:"model"`
+	Port      int       `json:"port"`
 	Messages  []Message `json:"messages"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-// GetChatDir returns the chat storage directory path
-func GetChatDir() string {
+// Storage handles chat conversation persistence
+type Storage struct {
+	baseDir string
+}
+
+// NewStorage creates a new storage instance
+func NewStorage() *Storage {
 	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".config", "efx-face-manager", "chat")
+	return &Storage{
+		baseDir: filepath.Join(home, ".config", "efx-face-manager", "chats"),
+	}
 }
 
-// EnsureChatDir creates the chat directory if it doesn't exist
-func EnsureChatDir() error {
-	return os.MkdirAll(GetChatDir(), 0755)
+// ensureDir creates the storage directory if it doesn't exist
+func (s *Storage) ensureDir() error {
+	return os.MkdirAll(s.baseDir, 0755)
 }
 
-// NewConversation creates a new conversation with auto-generated ID
-func NewConversation(port int, model string) (*Conversation, error) {
-	if err := EnsureChatDir(); err != nil {
-		return nil, fmt.Errorf("failed to create chat directory: %w", err)
-	}
+// generateID creates a unique conversation ID
+func generateID() string {
+	bytes := make([]byte, 8)
+	rand.Read(bytes)
+	return hex.EncodeToString(bytes)
+}
 
-	id, err := NextConversationID()
-	if err != nil {
-		return nil, err
-	}
-
+// NewConversation creates a new conversation
+func NewConversation(model string, port int) *Conversation {
 	now := time.Now()
-	conv := &Conversation{
-		ID:        id,
-		Title:     "New Conversation",
-		Port:      port,
+	return &Conversation{
+		ID:        generateID(),
+		Title:     "New Chat",
 		Model:     model,
+		Port:      port,
 		Messages:  []Message{},
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
-
-	return conv, nil
 }
 
-// NextConversationID generates the next available conversation ID
-func NextConversationID() (string, error) {
-	dir := GetChatDir()
-
-	// Ensure directory exists
-	if err := EnsureChatDir(); err != nil {
-		return "", err
-	}
-
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return "chat-001", nil // First conversation
-	}
-
-	maxNum := 0
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		name := entry.Name()
-		if !strings.HasPrefix(name, "chat-") || !strings.HasSuffix(name, ".json") {
-			continue
-		}
-		// Extract number from chat-XXX.json
-		numStr := strings.TrimPrefix(name, "chat-")
-		numStr = strings.TrimSuffix(numStr, ".json")
-		if num, err := strconv.Atoi(numStr); err == nil && num > maxNum {
-			maxNum = num
-		}
-	}
-
-	return fmt.Sprintf("chat-%03d", maxNum+1), nil
-}
-
-// ConversationPath returns the file path for a conversation
-func ConversationPath(id string) string {
-	return filepath.Join(GetChatDir(), id+".json")
-}
-
-// SaveConversation saves a conversation to disk
-func SaveConversation(conv *Conversation) error {
-	if err := EnsureChatDir(); err != nil {
-		return fmt.Errorf("failed to create chat directory: %w", err)
-	}
-
-	conv.UpdatedAt = time.Now()
-
-	data, err := json.MarshalIndent(conv, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal conversation: %w", err)
-	}
-
-	path := ConversationPath(conv.ID)
-	if err := os.WriteFile(path, data, 0644); err != nil {
-		return fmt.Errorf("failed to write conversation file: %w", err)
-	}
-
-	return nil
-}
-
-// LoadConversation loads a conversation from disk
-func LoadConversation(id string) (*Conversation, error) {
-	path := ConversationPath(id)
-
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read conversation file: %w", err)
-	}
-
-	var conv Conversation
-	if err := json.Unmarshal(data, &conv); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal conversation: %w", err)
-	}
-
-	return &conv, nil
-}
-
-// ListConversations lists all conversations, optionally filtered by port
-func ListConversations(port int) ([]Conversation, error) {
-	dir := GetChatDir()
-
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return []Conversation{}, nil
-		}
-		return nil, fmt.Errorf("failed to read chat directory: %w", err)
-	}
-
-	var conversations []Conversation
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
-			continue
-		}
-
-		id := strings.TrimSuffix(entry.Name(), ".json")
-		conv, err := LoadConversation(id)
-		if err != nil {
-			continue // Skip invalid files
-		}
-
-		// Filter by port if specified
-		if port > 0 && conv.Port != port {
-			continue
-		}
-
-		conversations = append(conversations, *conv)
-	}
-
-	// Sort by updated time, newest first
-	sort.Slice(conversations, func(i, j int) bool {
-		return conversations[i].UpdatedAt.After(conversations[j].UpdatedAt)
-	})
-
-	return conversations, nil
-}
-
-// ListAllConversations lists all conversations regardless of port
-func ListAllConversations() ([]Conversation, error) {
-	return ListConversations(0)
-}
-
-// DeleteConversation deletes a conversation from disk
-func DeleteConversation(id string) error {
-	path := ConversationPath(id)
-	if err := os.Remove(path); err != nil {
-		return fmt.Errorf("failed to delete conversation: %w", err)
-	}
-	return nil
-}
-
-// GetLatestConversation returns the most recent conversation for a port
-func GetLatestConversation(port int) (*Conversation, error) {
-	conversations, err := ListConversations(port)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(conversations) == 0 {
-		return nil, nil
-	}
-
-	return &conversations[0], nil
-}
-
-// AddMessage adds a message to the conversation and saves
+// AddMessage adds a message to the conversation
 func (c *Conversation) AddMessage(role, content string) {
 	c.Messages = append(c.Messages, Message{
 		Role:      role,
 		Content:   content,
 		Timestamp: time.Now(),
 	})
+	c.UpdatedAt = time.Now()
+
+	// Auto-generate title from first user message
+	if c.Title == "New Chat" && role == "user" && len(content) > 0 {
+		title := content
+		if len(title) > 40 {
+			title = title[:40] + "..."
+		}
+		c.Title = title
+	}
 }
 
-// ToAPIMessages converts conversation messages to API format
-func (c *Conversation) ToAPIMessages() []map[string]string {
-	messages := make([]map[string]string, len(c.Messages))
-	for i, msg := range c.Messages {
-		messages[i] = map[string]string{
-			"role":    msg.Role,
-			"content": msg.Content,
+// Save saves a conversation to disk
+func (s *Storage) Save(conv *Conversation) error {
+	if err := s.ensureDir(); err != nil {
+		return err
+	}
+
+	filename := filepath.Join(s.baseDir, "chat-"+conv.ID+".json")
+	data, err := json.MarshalIndent(conv, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(filename, data, 0644)
+}
+
+// Load loads a conversation by ID
+func (s *Storage) Load(id string) (*Conversation, error) {
+	filename := filepath.Join(s.baseDir, "chat-"+id+".json")
+	data, err := os.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+
+	var conv Conversation
+	if err := json.Unmarshal(data, &conv); err != nil {
+		return nil, err
+	}
+
+	return &conv, nil
+}
+
+// FindByModelAndPort finds the most recent conversation for a model/port
+func (s *Storage) FindByModelAndPort(model string, port int) (*Conversation, error) {
+	convs, err := s.List()
+	if err != nil {
+		return nil, err
+	}
+
+	// Find conversations matching model and port, return most recent
+	var matching []*Conversation
+	for _, c := range convs {
+		if c.Model == model && c.Port == port {
+			matching = append(matching, c)
 		}
 	}
-	return messages
+
+	if len(matching) == 0 {
+		return nil, nil // No matching conversation
+	}
+
+	// Sort by updated time, most recent first
+	sort.Slice(matching, func(i, j int) bool {
+		return matching[i].UpdatedAt.After(matching[j].UpdatedAt)
+	})
+
+	return matching[0], nil
+}
+
+// List returns all conversations
+func (s *Storage) List() ([]*Conversation, error) {
+	if err := s.ensureDir(); err != nil {
+		return nil, err
+	}
+
+	files, err := os.ReadDir(s.baseDir)
+	if err != nil {
+		return nil, err
+	}
+
+	var convs []*Conversation
+	for _, f := range files {
+		if f.IsDir() {
+			continue
+		}
+		if filepath.Ext(f.Name()) != ".json" {
+			continue
+		}
+
+		data, err := os.ReadFile(filepath.Join(s.baseDir, f.Name()))
+		if err != nil {
+			continue
+		}
+
+		var conv Conversation
+		if err := json.Unmarshal(data, &conv); err != nil {
+			continue
+		}
+
+		convs = append(convs, &conv)
+	}
+
+	// Sort by updated time, most recent first
+	sort.Slice(convs, func(i, j int) bool {
+		return convs[i].UpdatedAt.After(convs[j].UpdatedAt)
+	})
+
+	return convs, nil
+}
+
+// Delete deletes a conversation
+func (s *Storage) Delete(id string) error {
+	filename := filepath.Join(s.baseDir, "chat-"+id+".json")
+	return os.Remove(filename)
+}
+
+// Rename renames a conversation
+func (s *Storage) Rename(id, newTitle string) error {
+	conv, err := s.Load(id)
+	if err != nil {
+		return err
+	}
+	conv.Title = newTitle
+	return s.Save(conv)
 }

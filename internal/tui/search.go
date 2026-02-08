@@ -693,15 +693,18 @@ var (
 
 // uninstallModel handles model uninstallation
 type uninstallModel struct {
-	cfg       *config.Config
-	store     *model.Store
-	models    []model.Model
-	selected  int
-	width     int
-	height    int
-	confirm   bool
-	confirmed bool
-	err       error
+	cfg              *config.Config
+	store            *model.Store
+	models           []model.Model
+	selected         int
+	width            int
+	height           int
+	confirm          bool
+	confirmed        bool
+	err              error
+	// Template cleanup state
+	templateCleanup    bool              // Whether we're asking about templates
+	templatesForModel  []model.Template  // Templates found for selected model
 }
 
 func newUninstallModel(cfg *config.Config, store *model.Store) uninstallModel {
@@ -721,6 +724,72 @@ func (m uninstallModel) Init() tea.Cmd {
 func (m uninstallModel) Update(msg tea.Msg) (uninstallModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		// Handle template cleanup prompt
+		if m.templateCleanup {
+			switch msg.String() {
+			case "y", "Y":
+				// Delete model AND templates
+				if m.selected < len(m.models) {
+					modelName := m.models[m.selected].Name
+					// Delete templates first
+					if len(m.templatesForModel) > 0 {
+						var names []string
+						for _, t := range m.templatesForModel {
+							names = append(names, t.Name)
+						}
+						model.DeleteTemplates(names)
+					}
+					// Then delete model
+					err := m.store.RemoveWithCache(modelName)
+					if err != nil {
+						m.err = err
+					} else {
+						m.models, _ = m.store.List()
+						if m.selected >= len(m.models) {
+							m.selected = len(m.models) - 1
+						}
+						if m.selected < 0 {
+							m.selected = 0
+						}
+					}
+				}
+				m.templateCleanup = false
+				m.confirm = false
+				m.confirmed = true
+				m.templatesForModel = nil
+				return m, nil
+			case "n", "N":
+				// Delete model only, keep templates
+				if m.selected < len(m.models) {
+					modelName := m.models[m.selected].Name
+					err := m.store.RemoveWithCache(modelName)
+					if err != nil {
+						m.err = err
+					} else {
+						m.models, _ = m.store.List()
+						if m.selected >= len(m.models) {
+							m.selected = len(m.models) - 1
+						}
+						if m.selected < 0 {
+							m.selected = 0
+						}
+					}
+				}
+				m.templateCleanup = false
+				m.confirm = false
+				m.confirmed = true
+				m.templatesForModel = nil
+				return m, nil
+			case "c", "C", "esc":
+				// Cancel - don't delete anything
+				m.templateCleanup = false
+				m.confirm = false
+				m.templatesForModel = nil
+				return m, nil
+			}
+			return m, nil
+		}
+
 		if m.confirm {
 			switch msg.String() {
 			case "y", "Y":
@@ -759,17 +828,20 @@ func (m uninstallModel) Update(msg tea.Msg) (uninstallModel, tea.Cmd) {
 			if m.selected < maxIdx {
 				m.selected++
 			}
-		case "enter":
+		case "enter", "d":
 			if m.selected == len(m.models) {
 				return m, func() tea.Msg { return goBackMsg{} }
 			}
 			if m.selected < len(m.models) {
-				m.confirm = true
-				m.confirmed = false
-			}
-		case "d":
-			if m.selected < len(m.models) {
-				m.confirm = true
+				modelName := m.models[m.selected].Name
+				// Check for templates using this model
+				templates := model.FindTemplatesForModel(modelName)
+				if len(templates) > 0 {
+					m.templateCleanup = true
+					m.templatesForModel = templates
+				} else {
+					m.confirm = true
+				}
 				m.confirmed = false
 			}
 		case "esc":
@@ -825,7 +897,9 @@ func (m uninstallModel) View() string {
 	}
 
 	// Confirmation message
-	if m.confirm && m.selected < len(m.models) {
+	if m.templateCleanup && m.selected < len(m.models) {
+		b.WriteString("\n" + warningStyle.Render(fmt.Sprintf("Found %d template(s) using this model. Delete them too? [y/n/c]", len(m.templatesForModel))))
+	} else if m.confirm && m.selected < len(m.models) {
 		b.WriteString("\n" + warningStyle.Render(fmt.Sprintf("Delete %s and its cache? [y/N]", m.models[m.selected].Name)))
 	} else if m.confirmed {
 		b.WriteString("\n" + successStyle.Render("Model deleted successfully"))
