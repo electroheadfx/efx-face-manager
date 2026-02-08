@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/charmbracelet/bubbles/viewport"
@@ -207,9 +208,12 @@ func (m serverManagerModel) Update(msg tea.Msg) (serverManagerModel, tea.Cmd) {
 			// Toggle opencode web server - only if opencode is installed and server selected
 			if m.opencodeInstalled && m.selectedPort > 0 {
 				if m.opencodeWebRunning {
-					// Stop the web server
+					// Stop the web server - kill entire process group
 					if m.opencodeWebCmd != nil && m.opencodeWebCmd.Process != nil {
+						// Kill process group (negative PID kills the group)
+						syscall.Kill(-m.opencodeWebCmd.Process.Pid, syscall.SIGKILL)
 						m.opencodeWebCmd.Process.Kill()
+						m.opencodeWebCmd.Wait() // Clean up zombie process
 					}
 					m.opencodeWebRunning = false
 					m.opencodeWebCmd = nil
@@ -226,8 +230,8 @@ func (m serverManagerModel) Update(msg tea.Msg) (serverManagerModel, tea.Cmd) {
 						mergedConfig := opencode.MergeConfigsWithModel(userConfig, providerConfig, inst.Model)
 						configJSON, _ := opencode.ConfigToJSON(mergedConfig)
 
-						// Find next available port starting from 4100 (avoid conflicts with other opencode instances)
-						webPort := m.servers.NextAvailablePort(4100)
+						// Find next available port starting from 4100 (check system-wide, not just internal)
+						webPort := m.servers.NextFreeSystemPort(4100)
 						workDir, _ := os.Getwd()
 
 						// Build the command string for clipboard (debug)
@@ -238,6 +242,8 @@ func (m serverManagerModel) Update(msg tea.Msg) (serverManagerModel, tea.Cmd) {
 						webCmd.Env = append(os.Environ(), "OPENCODE_CONFIG_CONTENT="+configJSON)
 						// Set working directory to current directory
 						webCmd.Dir = workDir
+						// Create new process group so we can kill all children
+						webCmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 						// Start the process in background
 						if err := webCmd.Start(); err != nil {
@@ -507,4 +513,18 @@ func (m serverManagerModel) renderLogPanel() string {
 	}
 
 	return b.String()
+}
+
+// StopOpencodeWeb stops the opencode web server if running
+func (m *serverManagerModel) StopOpencodeWeb() {
+	if m.opencodeWebRunning && m.opencodeWebCmd != nil && m.opencodeWebCmd.Process != nil {
+		// Kill process group (negative PID kills the group)
+		syscall.Kill(-m.opencodeWebCmd.Process.Pid, syscall.SIGKILL)
+		m.opencodeWebCmd.Process.Kill()
+		m.opencodeWebCmd.Wait()
+		m.opencodeWebRunning = false
+		m.opencodeWebCmd = nil
+		m.opencodeWebPort = 0
+		os.Unsetenv("OPENCODE_CONFIG_CONTENT")
+	}
 }

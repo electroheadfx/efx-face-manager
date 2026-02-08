@@ -3,6 +3,7 @@ package server
 import (
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"os/exec"
 	"sort"
@@ -216,6 +217,25 @@ func (m *Manager) NextAvailablePort(startPort int) int {
 
 	port := startPort
 	for m.instances[port] != nil {
+		port++
+	}
+	return port
+}
+
+// IsPortFree checks if a port is available on the system
+func IsPortFree(port int) bool {
+	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+	if err != nil {
+		return false
+	}
+	ln.Close()
+	return true
+}
+
+// NextFreeSystemPort returns the next port that is actually free on the system
+func (m *Manager) NextFreeSystemPort(startPort int) int {
+	port := m.NextAvailablePort(startPort)
+	for !IsPortFree(port) {
 		port++
 	}
 	return port
