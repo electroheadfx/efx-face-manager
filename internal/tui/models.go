@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/lmarques/efx-face-manager/internal/backend"
 	"github.com/lmarques/efx-face-manager/internal/config"
 	"github.com/lmarques/efx-face-manager/internal/model"
 	"github.com/lmarques/efx-face-manager/internal/server"
@@ -12,21 +13,23 @@ import (
 
 // templatesModel handles template selection
 type templatesModel struct {
-	templates []model.Template
-	selected  int
-	width     int
-	height    int
-	cfg       *config.Config
-	store     *model.Store
+	templates   []model.Template
+	selected    int
+	width       int
+	height      int
+	cfg         *config.Config
+	store       *model.Store
+	backendType backend.BackendType
 }
 
-func newTemplatesModel(cfg *config.Config, store *model.Store) templatesModel {
+func newTemplatesModel(cfg *config.Config, store *model.Store, bt backend.BackendType) templatesModel {
 	templates, _ := model.LoadTemplates()
 	return templatesModel{
-		templates: templates,
-		selected:  0,
-		cfg:       cfg,
-		store:     store,
+		templates:   templates,
+		selected:    0,
+		cfg:         cfg,
+		store:       store,
+		backendType: bt,
 	}
 }
 
@@ -62,7 +65,7 @@ func (m templatesModel) Update(msg tea.Msg) (templatesModel, tea.Cmd) {
 					return m, nil
 				}
 				// Create config from template
-				cfg := server.FromTemplate(&template, m.cfg.ModelDir)
+				cfg := server.FromTemplate(&template, m.cfg.ModelDir, m.backendType)
 				return m, func() tea.Msg {
 					return openConfigPanelMsg{config: cfg}
 				}
@@ -245,13 +248,14 @@ func (m modelsModel) View() string {
 
 // modelTypeModel handles model type selection
 type modelTypeModel struct {
-	modelName string
-	types     []model.ModelType
-	labels    []string
-	selected  int
-	width     int
-	height    int
-	cfg       *config.Config
+	modelName   string
+	types       []model.ModelType
+	labels      []string
+	selected    int
+	width       int
+	height      int
+	cfg         *config.Config
+	backendType backend.BackendType
 }
 
 var modelTypes = []model.ModelType{
@@ -272,13 +276,33 @@ var modelTypeLabels = []string{
 	"whisper (audio transcription)",
 }
 
-func newModelTypeModel(modelName string, cfg *config.Config) modelTypeModel {
+// ollamaModelTypes is the subset supported by Ollama
+var ollamaModelTypes = []model.ModelType{
+	model.TypeLM,
+	model.TypeMultimodal,
+	model.TypeEmbeddings,
+}
+
+var ollamaModelTypeLabels = []string{
+	"lm (text-only)",
+	"multimodal (vision)",
+	"embeddings",
+}
+
+func newModelTypeModel(modelName string, cfg *config.Config, bt backend.BackendType) modelTypeModel {
+	types := modelTypes
+	labels := modelTypeLabels
+	if bt == backend.BackendOllama {
+		types = ollamaModelTypes
+		labels = ollamaModelTypeLabels
+	}
 	return modelTypeModel{
-		modelName: modelName,
-		types:     modelTypes,
-		labels:    modelTypeLabels,
-		selected:  0,
-		cfg:       cfg,
+		modelName:   modelName,
+		types:       types,
+		labels:      labels,
+		selected:    0,
+		cfg:         cfg,
+		backendType: bt,
 	}
 }
 
@@ -305,7 +329,7 @@ func (m modelTypeModel) Update(msg tea.Msg) (modelTypeModel, tea.Cmd) {
 			}
 			if m.selected < len(m.types) {
 				// Create config for selected type
-				cfg := server.NewConfig()
+				cfg := server.NewConfigForBackend(m.backendType)
 				cfg.Model = m.modelName
 				cfg.ModelPath = m.cfg.ModelDir + "/" + m.modelName
 				cfg.Type = m.types[m.selected]

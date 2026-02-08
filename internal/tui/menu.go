@@ -60,6 +60,7 @@ type menuModel struct {
 	store       *model.Store
 	modelCount  int
 	serverCount int
+	backendName string // Display name of the active backend (e.g. "MLX v0.3.0")
 }
 
 func newMenuModel(cfg *config.Config, store *model.Store) menuModel {
@@ -392,6 +393,10 @@ func (m menuModel) View() string {
 		b.WriteString("\n")
 	}
 	b.WriteString(infoLineStyle.Render(fmt.Sprintf("Storage: %s", storageStatus)))
+	if m.backendName != "" {
+		b.WriteString("\n")
+		b.WriteString(infoLineStyle.Render(fmt.Sprintf("Backend: %s", m.backendName)))
+	}
 
 	// Calculate padding to push footer to bottom
 	content := b.String()

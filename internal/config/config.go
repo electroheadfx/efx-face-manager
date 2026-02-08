@@ -19,6 +19,7 @@ type Config struct {
 	AutoDetectPath bool              `json:"autoDetectPath"`
 	DefaultPort    int               `json:"defaultPort"`
 	DefaultHost    string            `json:"defaultHost"`
+	Backend        string            `json:"backend"` // "auto", "mlx", "ollama"
 	LastUsed       LastUsedConfig    `json:"lastUsed"`
 }
 
@@ -35,6 +36,7 @@ func DefaultConfig() *Config {
 		AutoDetectPath: true,
 		DefaultPort:    8000,
 		DefaultHost:    "0.0.0.0",
+		Backend:        "auto",
 	}
 }
 
@@ -63,6 +65,10 @@ func Load() (*Config, error) {
 	if data, err := os.ReadFile(configPath); err == nil {
 		var cfg Config
 		if err := json.Unmarshal(data, &cfg); err == nil {
+			// Ensure backend has a value (backward compat with old configs)
+			if cfg.Backend == "" {
+				cfg.Backend = "auto"
+			}
 			// Cleanup legacy chat storage on startup
 			CleanupLegacyChatStorage()
 			return &cfg, nil

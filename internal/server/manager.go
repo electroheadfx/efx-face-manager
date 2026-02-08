@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/creack/pty"
+	"github.com/lmarques/efx-face-manager/internal/backend"
 )
 
 // UpdateType represents the type of server update
@@ -39,6 +40,7 @@ type Instance struct {
 	Port      int
 	Host      string
 	Args      []string
+	Backend   backend.BackendType
 	Cmd       *exec.Cmd
 	PTY       *os.File
 	Output    *RingBuffer
@@ -49,9 +51,10 @@ type Instance struct {
 
 // Manager handles multiple concurrent server instances
 type Manager struct {
-	instances map[int]*Instance
-	mu        sync.RWMutex
-	Updates   chan Update
+	instances      map[int]*Instance
+	ollamaInstance *Instance // Track the single Ollama server
+	mu             sync.RWMutex
+	Updates        chan Update
 }
 
 // NewManager creates a new server manager
@@ -64,6 +67,22 @@ func NewManager() *Manager {
 
 // Start starts a new server instance
 func (m *Manager) Start(config Config) (*Instance, error) {
+	if config.Backend == backend.BackendOllama {
+		return m.startOllama(config)
+	}
+	return m.startMLX(config)
+}
+
+// StartWithModelDir starts a new server instance, passing modelDir for env setup (Ollama)
+func (m *Manager) StartWithModelDir(config Config, modelDir string) (*Instance, error) {
+	if config.Backend == backend.BackendOllama {
+		return m.startOllamaWithEnv(config, modelDir)
+	}
+	return m.startMLX(config)
+}
+
+// startMLX starts an mlx-openai-server instance (one per model)
+func (m *Manager) startMLX(config Config) (*Instance, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -81,6 +100,7 @@ func (m *Manager) Start(config Config) (*Instance, error) {
 		Port:      config.Port,
 		Host:      config.Host,
 		Args:      args,
+		Backend:   backend.BackendMLX,
 		Output:    NewRingBuffer(1000),
 		StartedAt: time.Now(),
 	}
@@ -116,6 +136,97 @@ func (m *Manager) Start(config Config) (*Instance, error) {
 	return instance, nil
 }
 
+// startOllama starts or reuses the Ollama server (single server, multiple models)
+func (m *Manager) startOllama(config Config) (*Instance, error) {
+	return m.startOllamaWithEnv(config, "")
+}
+
+// startOllamaWithEnv starts or reuses the Ollama server with custom env
+func (m *Manager) startOllamaWithEnv(config Config, modelDir string) (*Instance, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Reuse existing Ollama server if running
+	if m.ollamaInstance != nil && m.ollamaInstance.Running {
+		return m.ollamaInstance, nil
+	}
+
+	// Check if Ollama is already serving externally (port in use)
+	if !IsPortFree(config.Port) {
+		instance := &Instance{
+			Model:     "ollama-server",
+			Type:      "ollama",
+			Port:      config.Port,
+			Host:      config.Host,
+			Args:      []string{"serve"},
+			Backend:   backend.BackendOllama,
+			Output:    NewRingBuffer(1000),
+			StartedAt: time.Now(),
+			Running:   true,
+		}
+		instance.Output.Write("Ollama server already running on port " + fmt.Sprintf("%d", config.Port))
+		m.ollamaInstance = instance
+		m.instances[config.Port] = instance
+		m.Updates <- Update{Port: config.Port, Type: UpdateStarted}
+		return instance, nil
+	}
+
+	// Start ollama serve
+	args := config.BuildArgs()
+	cmd := exec.Command("ollama", args...)
+
+	// Set environment for custom model directory
+	if modelDir != "" {
+		env := config.BuildEnv(modelDir)
+		if len(env) > 0 {
+			cmd.Env = append(os.Environ(), env...)
+		}
+	}
+
+	ptmx, err := pty.Start(cmd)
+	if err != nil {
+		return nil, fmt.Errorf("failed to start Ollama server: %w", err)
+	}
+
+	instance := &Instance{
+		Model:     "ollama-server",
+		Type:      "ollama",
+		Port:      config.Port,
+		Host:      config.Host,
+		Args:      args,
+		Backend:   backend.BackendOllama,
+		Cmd:       cmd,
+		PTY:       ptmx,
+		Output:    NewRingBuffer(1000),
+		StartedAt: time.Now(),
+		Running:   true,
+	}
+
+	m.ollamaInstance = instance
+	m.instances[config.Port] = instance
+
+	// Read output in goroutine
+	go instance.readOutput(m.Updates)
+
+	// Wait for process in goroutine
+	go func() {
+		cmd.Wait()
+		m.mu.Lock()
+		if inst, exists := m.instances[config.Port]; exists {
+			inst.Running = false
+		}
+		if m.ollamaInstance != nil {
+			m.ollamaInstance.Running = false
+			m.ollamaInstance = nil
+		}
+		m.mu.Unlock()
+		m.Updates <- Update{Port: config.Port, Type: UpdateStopped}
+	}()
+
+	m.Updates <- Update{Port: config.Port, Type: UpdateStarted}
+	return instance, nil
+}
+
 // Stop stops a server instance
 func (m *Manager) Stop(port int) error {
 	m.mu.Lock()
@@ -127,7 +238,7 @@ func (m *Manager) Stop(port int) error {
 	}
 
 	// Send SIGTERM for graceful shutdown
-	if instance.Cmd.Process != nil {
+	if instance.Cmd != nil && instance.Cmd.Process != nil {
 		if err := instance.Cmd.Process.Signal(syscall.SIGTERM); err != nil {
 			// Force kill if SIGTERM fails
 			instance.Cmd.Process.Kill()
@@ -141,6 +252,11 @@ func (m *Manager) Stop(port int) error {
 
 	instance.Running = false
 	delete(m.instances, port)
+
+	// Clear Ollama singleton reference if this was the Ollama server
+	if instance.Backend == backend.BackendOllama && m.ollamaInstance == instance {
+		m.ollamaInstance = nil
+	}
 
 	return nil
 }
@@ -241,6 +357,13 @@ func (m *Manager) NextFreeSystemPort(startPort int) int {
 	return port
 }
 
+// OllamaRunning returns whether the Ollama server instance is currently running
+func (m *Manager) OllamaRunning() bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.ollamaInstance != nil && m.ollamaInstance.Running
+}
+
 // readOutput reads output from PTY and stores it
 func (i *Instance) readOutput(updates chan Update) {
 	buf := make([]byte, 1024)
@@ -266,5 +389,8 @@ func (i *Instance) readOutput(updates chan Update) {
 
 // GetCommandString returns the full command as a string
 func (i *Instance) GetCommandString() string {
+	if i.Backend == backend.BackendOllama {
+		return "ollama " + strings.Join(i.Args, " ")
+	}
 	return "mlx-openai-server " + strings.Join(i.Args, " ")
 }

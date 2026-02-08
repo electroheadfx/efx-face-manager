@@ -7,6 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/lmarques/efx-face-manager/internal/backend"
 	"github.com/lmarques/efx-face-manager/internal/config"
 	"github.com/lmarques/efx-face-manager/internal/model"
 	"github.com/lmarques/efx-face-manager/internal/server"
@@ -73,28 +74,42 @@ func newConfigPanelModel(cfg server.Config, appCfg *config.Config, servers *serv
 func (m *configPanelModel) buildOptions() {
 	m.options = []configOption{}
 	
+	isOllama := m.config.Backend == backend.BackendOllama
+
 	switch m.config.Type {
 	case model.TypeLM, model.TypeMultimodal:
 		m.options = append(m.options,
 			configOption{key: "context_length", label: "Context length", value: formatInt(m.config.ContextLength)},
-			configOption{key: "auto_tool_choice", label: "Auto tool choice", value: "enabled", isToggle: true},
-			configOption{key: "tool_call_parser", label: "Tool call parser", value: formatStr(m.config.ToolCallParser), 
-				choices: []string{"qwen3", "glm4_moe", "qwen3_coder", "qwen3_moe", "qwen3_next", "qwen3_vl", "harmony", "minimax_m2", "(clear)"}},
-			configOption{key: "reasoning_parser", label: "Reasoning parser", value: formatStr(m.config.ReasoningParser),
-				choices: []string{"qwen3", "glm4_moe", "qwen3_coder", "qwen3_moe", "qwen3_next", "qwen3_vl", "harmony", "minimax_m2", "glm47_flash", "(clear)"}},
-			configOption{key: "message_converter", label: "Message converter", value: formatStr(m.config.MessageConverter),
-				choices: []string{"glm4_moe", "minimax_m2", "nemotron3_nano", "qwen3_coder", "(clear)"}},
-			configOption{key: "chat_template_file", label: "Chat template file", value: formatStr(m.config.ChatTemplateFile)},
-			configOption{key: "debug", label: "Debug mode", value: formatBool(m.config.Debug), isToggle: true},
-			configOption{key: "trust_remote_code", label: "Trust remote code", value: formatBool(m.config.TrustRemoteCode), isToggle: true},
 		)
-		if m.config.Type == model.TypeMultimodal {
+		if !isOllama {
+			// MLX-specific options
+			m.options = append(m.options,
+				configOption{key: "auto_tool_choice", label: "Auto tool choice", value: "enabled", isToggle: true},
+				configOption{key: "tool_call_parser", label: "Tool call parser", value: formatStr(m.config.ToolCallParser), 
+					choices: []string{"qwen3", "glm4_moe", "qwen3_coder", "qwen3_moe", "qwen3_next", "qwen3_vl", "harmony", "minimax_m2", "(clear)"}},
+				configOption{key: "reasoning_parser", label: "Reasoning parser", value: formatStr(m.config.ReasoningParser),
+					choices: []string{"qwen3", "glm4_moe", "qwen3_coder", "qwen3_moe", "qwen3_next", "qwen3_vl", "harmony", "minimax_m2", "glm47_flash", "(clear)"}},
+				configOption{key: "message_converter", label: "Message converter", value: formatStr(m.config.MessageConverter),
+					choices: []string{"glm4_moe", "minimax_m2", "nemotron3_nano", "qwen3_coder", "(clear)"}},
+				configOption{key: "chat_template_file", label: "Chat template file", value: formatStr(m.config.ChatTemplateFile)},
+			)
+		}
+		m.options = append(m.options,
+			configOption{key: "debug", label: "Debug mode", value: formatBool(m.config.Debug), isToggle: true},
+		)
+		if !isOllama {
+			m.options = append(m.options,
+				configOption{key: "trust_remote_code", label: "Trust remote code", value: formatBool(m.config.TrustRemoteCode), isToggle: true},
+			)
+		}
+		if !isOllama && m.config.Type == model.TypeMultimodal {
 			m.options = append(m.options,
 				configOption{key: "disable_auto_resize", label: "Disable auto resize", value: formatBool(m.config.DisableAutoResize), isToggle: true},
 			)
 		}
 		
 	case model.TypeImageGeneration:
+		// MLX-only type, but show options anyway
 		m.options = append(m.options,
 			configOption{key: "config_name", label: "Config name", value: m.config.ConfigName,
 				choices: []string{"flux-schnell", "flux-dev", "flux-krea-dev", "qwen-image", "z-image-turbo", "fibo"}},
@@ -122,20 +137,31 @@ func (m *configPanelModel) buildOptions() {
 		)
 		
 	case model.TypeEmbeddings:
-		m.options = append(m.options,
-			configOption{key: "max_concurrency", label: "Max concurrency", value: formatInt(m.config.MaxConcurrency)},
-			configOption{key: "queue_timeout", label: "Queue timeout", value: formatInt(m.config.QueueTimeout)},
-			configOption{key: "queue_size", label: "Queue size", value: formatInt(m.config.QueueSize)},
-		)
+		if isOllama {
+			// Ollama embeddings: minimal options
+			m.options = append(m.options,
+				configOption{key: "debug", label: "Debug mode", value: formatBool(m.config.Debug), isToggle: true},
+			)
+		} else {
+			m.options = append(m.options,
+				configOption{key: "max_concurrency", label: "Max concurrency", value: formatInt(m.config.MaxConcurrency)},
+				configOption{key: "queue_timeout", label: "Queue timeout", value: formatInt(m.config.QueueTimeout)},
+				configOption{key: "queue_size", label: "Queue size", value: formatInt(m.config.QueueSize)},
+			)
+		}
 	}
 	
 	// Common server options
 	m.options = append(m.options,
 		configOption{key: "port", label: "Port", value: fmt.Sprintf("%d", m.config.Port)},
 		configOption{key: "host", label: "Host", value: m.config.Host},
-		configOption{key: "log_level", label: "Log level", value: formatStr(m.config.LogLevel),
-			choices: []string{"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL", "(clear)"}},
 	)
+	if !isOllama {
+		m.options = append(m.options,
+			configOption{key: "log_level", label: "Log level", value: formatStr(m.config.LogLevel),
+				choices: []string{"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL", "(clear)"}},
+		)
+	}
 	
 	// Done and Cancel removed - actions are in action bar only
 }
@@ -269,7 +295,7 @@ func (m *configPanelModel) handleEnter() (configPanelModel, tea.Cmd) {
 			if m.servers.IsPortInUse(m.config.Port) {
 				m.config.Port = m.servers.NextAvailablePort(m.config.Port)
 			}
-			_, err := m.servers.Start(m.config)
+			_, err := m.servers.StartWithModelDir(m.config, m.cfg.ModelDir)
 			if err != nil {
 				return *m, nil
 			}
@@ -423,7 +449,14 @@ func (m configPanelModel) View() string {
 
 	// Command preview - wrap to multiple lines, white text
 	args := m.config.BuildArgs()
-	cmdStr := "mlx-openai-server " + strings.Join(args, " ")
+	executable := m.config.Executable()
+	var cmdStr string
+	if m.config.Backend == backend.BackendOllama {
+		env := m.config.BuildEnv(m.cfg.ModelDir)
+		cmdStr = strings.Join(env, " ") + " " + executable + " " + strings.Join(args, " ")
+	} else {
+		cmdStr = executable + " " + strings.Join(args, " ")
+	}
 	cmdLines := wrapText(cmdStr, contentWidth-4)
 	for _, line := range cmdLines {
 		b.WriteString(optionNormalStyle.Render(line) + "\n")

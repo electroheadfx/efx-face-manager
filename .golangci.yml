@@ -1,0 +1,17 @@
+linters:
+  enable:
+    - govet
+    - staticcheck
+    - errcheck
+    - ineffassign
+    - unused
+
+issues:
+  exclude-dirs:
+    - vendor
+  exclude-rules:
+    # Suppress unsafe.Pointer warnings from third-party Windows syscall packages
+    - path: "_windows\\.go"
+      linters:
+        - govet
+      text: "possible misuse of unsafe.Pointer"

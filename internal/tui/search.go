@@ -13,13 +13,15 @@ import (
 	"github.com/lmarques/efx-face-manager/internal/config"
 	"github.com/lmarques/efx-face-manager/internal/hf"
 	"github.com/lmarques/efx-face-manager/internal/model"
+	"github.com/lmarques/efx-face-manager/internal/ollama"
 )
 
-// HuggingFace sources
+// HuggingFace and Ollama sources
 var hfSources = []string{
 	"mlx-community",
 	"lmstudio-community",
 	"All Models",
+	"Ollama Library",
 }
 
 // Loading modes
@@ -33,6 +35,7 @@ type searchModel struct {
 	cfg          *config.Config
 	store        *model.Store
 	hfClient     *hf.Client
+	ollamaClient *ollama.Client
 	width        int
 	height       int
 	sourceIdx    int
@@ -53,7 +56,7 @@ type searchModel struct {
 	spinner      spinner.Model
 }
 
-func newSearchModel(cfg *config.Config, store *model.Store) searchModel {
+func newSearchModel(cfg *config.Config, store *model.Store, ollamaClient *ollama.Client) searchModel {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = spinnerStyle
@@ -62,6 +65,7 @@ func newSearchModel(cfg *config.Config, store *model.Store) searchModel {
 		cfg:          cfg,
 		store:        store,
 		hfClient:     hf.NewClient(),
+		ollamaClient: ollamaClient,
 		sourceIdx:    0,
 		loadedSource: -1,            // Not loaded yet
 		loadingMode:  loadModeAll,   // Default to All mode (load models on startup)
@@ -317,7 +321,12 @@ func (m searchModel) Update(msg tea.Msg) (searchModel, tea.Cmd) {
 			// Open in browser
 			if len(m.filtered) > 0 && m.cursor < len(m.filtered) {
 				selectedModel := m.filtered[m.cursor]
-				url := fmt.Sprintf("https://huggingface.co/%s", selectedModel.ID)
+				var url string
+				if hfSources[m.sourceIdx] == "Ollama Library" {
+					url = fmt.Sprintf("https://ollama.com/library/%s", selectedModel.ID)
+				} else {
+					url = fmt.Sprintf("https://huggingface.co/%s", selectedModel.ID)
+				}
 				exec.Command("open", url).Start()
 			}
 
@@ -335,12 +344,33 @@ func (m searchModel) Update(msg tea.Msg) (searchModel, tea.Cmd) {
 
 func (m searchModel) loadModels(sourceIdx int, searchQuery string) tea.Cmd {
 	return func() tea.Msg {
+		// Ollama Library tab
+		if hfSources[sourceIdx] == "Ollama Library" {
+			if m.ollamaClient == nil {
+				return loadErrorMsg{err: fmt.Errorf("Ollama client not available")}
+			}
+			models, err := m.ollamaClient.SearchLibrary(searchQuery, 100)
+			if err != nil {
+				return loadErrorMsg{err: err}
+			}
+			var hfModels []hf.Model
+			for _, om := range models {
+				hfModels = append(hfModels, hf.Model{
+					ID:        om.Name,
+					Author:    "ollama",
+					Downloads: om.Pulls,
+				})
+			}
+			return modelsLoadedMsg{models: hfModels, sourceIdx: sourceIdx}
+		}
+
+		// HuggingFace sources
 		author := ""
 		limit := 100
-		if sourceIdx < len(hfSources)-1 {
-			// Specific community source
+		if sourceIdx < len(hfSources)-2 {
+			// Specific community source (mlx-community or lmstudio-community)
 			author = hfSources[sourceIdx]
-		} else {
+		} else if hfSources[sourceIdx] == "All Models" {
 			// "All Models" - get ALL MLX models (no author filter, high limit)
 			limit = 500
 		}
@@ -387,6 +417,16 @@ func (m searchModel) getTotalPages() int {
 
 func (m searchModel) performInstall(modelID string) tea.Cmd {
 	return func() tea.Msg {
+		// Ollama Library: pull model via Ollama
+		if hfSources[m.sourceIdx] == "Ollama Library" {
+			if m.ollamaClient == nil {
+				return installCompleteMsg{modelID: modelID, err: fmt.Errorf("Ollama client not available")}
+			}
+			err := m.ollamaClient.Pull(modelID)
+			return installCompleteMsg{modelID: modelID, err: err}
+		}
+
+		// HuggingFace: download via hf CLI (existing logic)
 		// Create cache directory if needed
 		cacheDir := m.cfg.ModelDir
 		os.MkdirAll(filepath.Join(cacheDir, "cache"), 0755)

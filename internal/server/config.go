@@ -2,12 +2,15 @@ package server
 
 import (
 	"fmt"
+	"path/filepath"
 
+	"github.com/lmarques/efx-face-manager/internal/backend"
 	"github.com/lmarques/efx-face-manager/internal/model"
 )
 
 // Config holds server configuration
 type Config struct {
+	Backend          backend.BackendType
 	Model            string
 	ModelPath        string
 	Type             model.ModelType
@@ -23,13 +26,13 @@ type Config struct {
 	ChatTemplateFile string
 	LogLevel         string
 	
-	// Image generation/edit specific
+	// Image generation/edit specific (MLX only)
 	ConfigName  string
 	Quantize    int
 	LoraPaths   string
 	LoraScales  string
 	
-	// Whisper/embeddings specific
+	// Whisper/embeddings specific (MLX only)
 	MaxConcurrency int
 	QueueTimeout   int
 	QueueSize      int
@@ -38,6 +41,7 @@ type Config struct {
 // NewConfig creates a new server config with defaults
 func NewConfig() Config {
 	return Config{
+		Backend:        backend.BackendMLX,
 		Port:           8000,
 		Host:           "0.0.0.0",
 		Type:           model.TypeLM,
@@ -47,8 +51,26 @@ func NewConfig() Config {
 	}
 }
 
-// BuildArgs builds the command line arguments
+// NewConfigForBackend creates a new server config with backend-appropriate defaults
+func NewConfigForBackend(bt backend.BackendType) Config {
+	cfg := NewConfig()
+	cfg.Backend = bt
+	if bt == backend.BackendOllama {
+		cfg.Port = 11434
+	}
+	return cfg
+}
+
+// BuildArgs builds the command line arguments for the configured backend
 func (c *Config) BuildArgs() []string {
+	if c.Backend == backend.BackendOllama {
+		return c.buildOllamaArgs()
+	}
+	return c.buildMLXArgs()
+}
+
+// buildMLXArgs builds mlx-openai-server arguments (existing logic)
+func (c *Config) buildMLXArgs() []string {
 	args := []string{"launch"}
 	
 	args = append(args, "--model-path", c.ModelPath)
@@ -110,14 +132,62 @@ func (c *Config) BuildArgs() []string {
 	return args
 }
 
+// buildOllamaArgs builds Ollama serve arguments
+func (c *Config) buildOllamaArgs() []string {
+	return []string{"serve"}
+}
+
+// BuildEnv returns environment variables needed for the server process
+func (c *Config) BuildEnv(modelDir string) []string {
+	if c.Backend == backend.BackendOllama {
+		env := []string{
+			fmt.Sprintf("OLLAMA_MODELS=%s", filepath.Join(modelDir, "cache")),
+			fmt.Sprintf("OLLAMA_HOST=%s:%d", c.Host, c.Port),
+		}
+		if c.Debug {
+			env = append(env, "OLLAMA_DEBUG=1")
+		}
+		return env
+	}
+	return nil
+}
+
+// Executable returns the backend executable name
+func (c *Config) Executable() string {
+	if c.Backend == backend.BackendOllama {
+		return "ollama"
+	}
+	return "mlx-openai-server"
+}
+
 // FromTemplate creates a config from a model template
-func FromTemplate(t *model.Template, modelDir string) Config {
+func FromTemplate(t *model.Template, modelDir string, activeBackend backend.BackendType) Config {
+	bt := activeBackend
+	if t.Backend != "" {
+		bt = backend.BackendType(t.Backend)
+	}
+
+	port := t.Port
+	if port == 0 {
+		if bt == backend.BackendOllama {
+			port = 11434
+		} else {
+			port = 8000
+		}
+	}
+
+	host := t.Host
+	if host == "" {
+		host = "0.0.0.0"
+	}
+
 	return Config{
+		Backend:          bt,
 		Model:            t.ModelName,
 		ModelPath:        modelDir + "/" + t.ModelName,
 		Type:             t.ModelType,
-		Port:             t.Port,
-		Host:             t.Host,
+		Port:             port,
+		Host:             host,
 		ReasoningParser:  t.ReasoningParser,
 		ToolCallParser:   t.ToolCallParser,
 		MessageConverter: t.MessageConverter,

@@ -12,6 +12,7 @@ type Model struct {
 	Path       string
 	TargetPath string // The symlink target (actual cache location)
 	IsSymlink  bool
+	Backend    string // "mlx" or "ollama"
 }
 
 // ModelType represents the type of model

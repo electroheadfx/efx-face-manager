@@ -4,9 +4,11 @@ import (
 	"fmt"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/lmarques/efx-face-manager/internal/backend"
 	"github.com/lmarques/efx-face-manager/internal/config"
 	"github.com/lmarques/efx-face-manager/internal/hf"
 	"github.com/lmarques/efx-face-manager/internal/model"
+	"github.com/lmarques/efx-face-manager/internal/ollama"
 	"github.com/lmarques/efx-face-manager/internal/server"
 )
 
@@ -42,9 +44,13 @@ type appModel struct {
 	err            error
 
 	// Core services
-	cfg     *config.Config
-	store   *model.Store
-	servers *server.Manager
+	cfg          *config.Config
+	store        *model.Store
+	servers      *server.Manager
+	activeBackend backend.Backend       // Resolved backend (MLX or Ollama)
+	backendType  backend.BackendType    // Shortcut to activeBackend.Type()
+	backendErr   error                  // Error if no backend found
+	ollamaClient *ollama.Client
 
 	// Sub-models
 	menuModel            menuModel
@@ -69,14 +75,54 @@ func initialModel() appModel {
 	store := model.NewStore(cfg.ModelDir)
 	servers := server.NewManager()
 
-	return appModel{
-		state:     viewMenu,
-		history:   []viewState{},
-		cfg:       cfg,
-		store:     store,
-		servers:   servers,
-		menuModel: newMenuModel(cfg, store),
+	// Resolve backend from config
+	backendPref := backend.BackendType(cfg.Backend)
+	if backendPref == "" {
+		backendPref = backend.BackendAuto
 	}
+	activeBackend, backendErr := backend.Resolve(backendPref)
+
+	var bt backend.BackendType
+	if activeBackend != nil {
+		bt = activeBackend.Type()
+	}
+
+	return appModel{
+		state:         viewMenu,
+		history:       []viewState{},
+		cfg:           cfg,
+		store:         store,
+		servers:       servers,
+		activeBackend: activeBackend,
+		backendType:   bt,
+		backendErr:    backendErr,
+		ollamaClient:  ollama.NewClient(),
+		menuModel:     newMenuModel(cfg, store), // will be updated with backend info on first render
+	}
+}
+
+// backendDisplayName returns a display string for the active backend
+func (m appModel) backendDisplayName() string {
+	if m.activeBackend == nil {
+		if m.backendErr != nil {
+			return "None (no backend found)"
+		}
+		return ""
+	}
+	d := m.activeBackend.Detect()
+	name := m.activeBackend.Name()
+	if d.Version != "" {
+		return name + " " + d.Version
+	}
+	return name
+}
+
+// initMenuModel creates a new menuModel with backend info populated
+func (m appModel) initMenuModel() menuModel {
+	mm := newMenuModel(m.cfg, m.store)
+	mm.serverCount = m.servers.Count()
+	mm.backendName = m.backendDisplayName()
+	return mm
 }
 
 // pushHistory adds current state to history before navigating (returns new history)
@@ -114,12 +160,11 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Reinitialize the model for the previous state
 			switch prevState {
 			case viewMenu:
-				m.menuModel = newMenuModel(m.cfg, m.store)
+				m.menuModel = m.initMenuModel()
 				m.menuModel.width = m.width
 				m.menuModel.height = m.height
-				m.menuModel.serverCount = m.servers.Count()
 			case viewTemplates:
-				m.templatesModel = newTemplatesModel(m.cfg, m.store)
+				m.templatesModel = newTemplatesModel(m.cfg, m.store, m.backendType)
 				m.templatesModel.width = m.width
 				m.templatesModel.height = m.height
 			case viewModels:
@@ -131,11 +176,11 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if m.configPanelModel.config.Model != "" {
 					modelName = m.configPanelModel.config.Model
 				}
-				m.modelTypeModel = newModelTypeModel(modelName, m.cfg)
+				m.modelTypeModel = newModelTypeModel(modelName, m.cfg, m.backendType)
 				m.modelTypeModel.width = m.width
 				m.modelTypeModel.height = m.height
 			case viewSearch:
-				m.searchModel = newSearchModel(m.cfg, m.store)
+				m.searchModel = newSearchModel(m.cfg, m.store, m.ollamaClient)
 				m.searchModel.width = m.width
 				m.searchModel.height = m.height
 			case viewUninstall:
@@ -171,10 +216,9 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// On any other page - return to home page
 				m.history = []viewState{} // Clear history
 				m.state = viewMenu
-				m.menuModel = newMenuModel(m.cfg, m.store)
+				m.menuModel = m.initMenuModel()
 				m.menuModel.width = m.width
 				m.menuModel.height = m.height
-				m.menuModel.serverCount = m.servers.Count()
 				return m, nil
 			}
 		}
@@ -199,7 +243,7 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case openTemplatesMsg:
 		m.history = pushHistory(m.history, m.state)
 		m.state = viewTemplates
-		m.templatesModel = newTemplatesModel(m.cfg, m.store)
+		m.templatesModel = newTemplatesModel(m.cfg, m.store, m.backendType)
 		m.templatesModel.width = m.width
 		m.templatesModel.height = m.height
 		return m, nil
@@ -215,7 +259,7 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case openModelTypeMsg:
 		m.history = pushHistory(m.history, m.state)
 		m.state = viewModelType
-		m.modelTypeModel = newModelTypeModel(msg.model, m.cfg)
+		m.modelTypeModel = newModelTypeModel(msg.model, m.cfg, m.backendType)
 		m.modelTypeModel.width = m.width
 		m.modelTypeModel.height = m.height
 		return m, nil
@@ -255,26 +299,24 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.store = model.NewStore(m.cfg.ModelDir)
 		m.history = []viewState{} // Clear history when returning to menu
 		m.state = viewMenu
-		m.menuModel = newMenuModel(m.cfg, m.store)
+		m.menuModel = m.initMenuModel()
 		m.menuModel.width = m.width
 		m.menuModel.height = m.height
-		m.menuModel.serverCount = m.servers.Count()
 		return m, nil
 
 	case goBackMsg:
 		// Go back to menu (clear history)
 		m.history = []viewState{}
 		m.state = viewMenu
-		m.menuModel = newMenuModel(m.cfg, m.store)
+		m.menuModel = m.initMenuModel()
 		m.menuModel.width = m.width
 		m.menuModel.height = m.height
-		m.menuModel.serverCount = m.servers.Count()
 		return m, nil
 
 	case openInstallMsg:
 		m.history = pushHistory(m.history, m.state)
 		m.state = viewSearch
-		m.searchModel = newSearchModel(m.cfg, m.store)
+		m.searchModel = newSearchModel(m.cfg, m.store, m.ollamaClient)
 		m.searchModel.width = m.width
 		m.searchModel.height = m.height
 		return m, m.searchModel.Init()
@@ -305,7 +347,7 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case openConfigMsg:
 		// From server_new, open config with pre-filled values
-		cfg := server.NewConfig()
+		cfg := server.NewConfigForBackend(m.backendType)
 		cfg.Model = msg.model
 		cfg.ModelPath = m.cfg.ModelDir + "/" + msg.model
 		cfg.Type = msg.modelType
@@ -512,7 +554,7 @@ func RunSearch(query string) error {
 		// No query = open TUI search
 		m := initialModel()
 		m.state = viewSearch
-		m.searchModel = newSearchModel(m.cfg, m.store)
+		m.searchModel = newSearchModel(m.cfg, m.store, m.ollamaClient)
 		p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion())
 		_, err := p.Run()
 		return err
