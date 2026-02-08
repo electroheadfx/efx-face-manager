@@ -9,7 +9,7 @@
 
 set -e
 
-VERSION="0.3.2"
+VERSION="0.3.1"
 REPO="electroheadfx/efx-face-manager"
 BINARY_NAME="efx-face"
 INSTALL_DIR="/usr/local/bin"

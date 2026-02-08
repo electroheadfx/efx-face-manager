@@ -5,7 +5,6 @@ import (
 	"os"
 	"os/exec"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/charmbracelet/bubbles/viewport"
@@ -210,10 +209,7 @@ func (m serverManagerModel) Update(msg tea.Msg) (serverManagerModel, tea.Cmd) {
 				if m.opencodeWebRunning {
 					// Stop the web server - kill entire process group
 					if m.opencodeWebCmd != nil && m.opencodeWebCmd.Process != nil {
-						// Kill process group (negative PID kills the group)
-						syscall.Kill(-m.opencodeWebCmd.Process.Pid, syscall.SIGKILL)
-						m.opencodeWebCmd.Process.Kill()
-						m.opencodeWebCmd.Wait() // Clean up zombie process
+						killProcessGroup(m.opencodeWebCmd)
 					}
 					m.opencodeWebRunning = false
 					m.opencodeWebCmd = nil
@@ -243,8 +239,7 @@ func (m serverManagerModel) Update(msg tea.Msg) (serverManagerModel, tea.Cmd) {
 						// Set working directory to current directory
 						webCmd.Dir = workDir
 						// Create new process group so we can kill all children
-						webCmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-
+						setupProcessGroup(webCmd)
 						// Start the process in background
 						if err := webCmd.Start(); err != nil {
 							m.statusMsg = "Failed to start opencode web"
@@ -519,9 +514,7 @@ func (m serverManagerModel) renderLogPanel() string {
 func (m *serverManagerModel) StopOpencodeWeb() {
 	if m.opencodeWebRunning && m.opencodeWebCmd != nil && m.opencodeWebCmd.Process != nil {
 		// Kill process group (negative PID kills the group)
-		syscall.Kill(-m.opencodeWebCmd.Process.Pid, syscall.SIGKILL)
-		m.opencodeWebCmd.Process.Kill()
-		m.opencodeWebCmd.Wait()
+		killProcessGroup(m.opencodeWebCmd)
 		m.opencodeWebRunning = false
 		m.opencodeWebCmd = nil
 		m.opencodeWebPort = 0

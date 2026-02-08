@@ -10,7 +10,7 @@ import (
 	"github.com/lmarques/efx-face-manager/internal/server"
 )
 
-const version = "0.3.2"
+const version = "0.3.1"
 
 // View states
 type viewState int
