@@ -10,7 +10,7 @@ import (
 	"github.com/lmarques/efx-face-manager/internal/server"
 )
 
-const version = "0.3.0"
+const version = "0.3.1"
 
 // View states
 type viewState int
@@ -154,6 +154,7 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Handle ctrl+c globally
 		if msg.String() == "ctrl+c" {
+			m.serverManagerModel.StopOpencodeWeb()
 			m.servers.StopAll()
 			return m, tea.Quit
 		}
@@ -163,6 +164,7 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if msg.String() == "q" {
 				if m.state == viewMenu {
 					// On home page - quit application
+					m.serverManagerModel.StopOpencodeWeb()
 					m.servers.StopAll()
 					return m, tea.Quit
 				}
