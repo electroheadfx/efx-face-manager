@@ -4,12 +4,14 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/lmarques/efx-face-manager/internal/backend"
 	"github.com/lmarques/efx-face-manager/internal/opencode"
 	"github.com/lmarques/efx-face-manager/internal/server"
 	"golang.design/x/clipboard"
@@ -52,15 +54,15 @@ func newServerManagerModel(servers *server.Manager, width, height int) serverMan
 	}
 	vp := viewport.New(contentWidth-6, vpHeight)
 
-	// Check if opencode is installed
-	_, opencodeErr := exec.LookPath("opencode")
+	// Check if opencode is available on this platform (fast platform check only)
+	opencodeInstalled := runtime.GOOS == "linux" || runtime.GOOS == "darwin" || runtime.GOOS == "windows"
 
 	m := serverManagerModel{
 		servers:           servers,
 		width:             width,
 		height:            height,
 		viewport:          vp,
-		opencodeInstalled: opencodeErr == nil,
+		opencodeInstalled: opencodeInstalled,
 	}
 
 	// Select first server if any
@@ -170,7 +172,7 @@ func (m serverManagerModel) Update(msg tea.Msg) (serverManagerModel, tea.Cmd) {
 				if inst := m.servers.Get(m.selectedPort); inst != nil {
 					workDir, _ := os.Getwd()
 					// Create runner script with merged config
-					scriptPath, err := opencode.CreateRunnerScript(inst.Host, inst.Port, inst.Model)
+					scriptPath, err := opencode.CreateRunnerScript(inst.Host, inst.Port, inst.Model, string(inst.Backend))
 					if err != nil {
 						m.statusMsg = "Failed to create runner script"
 						return m, tea.Tick(2*time.Second, func(t time.Time) tea.Msg { return clearStatusMsg{} })
@@ -188,12 +190,18 @@ func (m serverManagerModel) Update(msg tea.Msg) (serverManagerModel, tea.Cmd) {
 				if inst := m.servers.Get(m.selectedPort); inst != nil {
 					// Load and merge configs like the script generation does
 					userConfig := opencode.LoadUserConfig()
-					providerConfig := opencode.GenerateProviderConfig(inst.Host, inst.Port, inst.Model)
+					providerConfig := opencode.GenerateProviderConfig(inst.Host, inst.Port, inst.Model, string(inst.Backend))
 					mergedConfig := opencode.MergeConfigs(userConfig, providerConfig)
 					configJSON, _ := opencode.ConfigToJSON(mergedConfig)
 
+					// Build model string - add mlx-community prefix only for MLX backend
+					modelStr := inst.Model
+					if inst.Backend == backend.BackendMLX {
+						modelStr = fmt.Sprintf("mlx-community/%s", inst.Model)
+					}
+
 					cmd := tea.ExecProcess(
-						exec.Command("opencode", "--model", fmt.Sprintf("mlx-community/%s", inst.Model)),
+						exec.Command("opencode", "--model", modelStr),
 						func(err error) tea.Msg {
 							return opencodeExitMsg{err: err}
 						},
@@ -222,8 +230,8 @@ func (m serverManagerModel) Update(msg tea.Msg) (serverManagerModel, tea.Cmd) {
 					if inst := m.servers.Get(m.selectedPort); inst != nil {
 						// Load and merge configs with model field set
 						userConfig := opencode.LoadUserConfig()
-						providerConfig := opencode.GenerateProviderConfig(inst.Host, inst.Port, inst.Model)
-						mergedConfig := opencode.MergeConfigsWithModel(userConfig, providerConfig, inst.Model)
+						providerConfig := opencode.GenerateProviderConfig(inst.Host, inst.Port, inst.Model, string(inst.Backend))
+						mergedConfig := opencode.MergeConfigsWithModel(userConfig, providerConfig, inst.Model, string(inst.Backend))
 						configJSON, _ := opencode.ConfigToJSON(mergedConfig)
 
 						// Find next available port starting from 4100 (check system-wide, not just internal)

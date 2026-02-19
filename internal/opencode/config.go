@@ -32,8 +32,22 @@ func LoadUserConfig() map[string]interface{} {
 	return config
 }
 
-// GenerateProviderConfig creates the mlx-community provider configuration
-func GenerateProviderConfig(host string, port int, modelName string) map[string]interface{} {
+// GenerateProviderConfig creates the provider configuration based on backend type
+func GenerateProviderConfig(host string, port int, modelName string, backend string) map[string]interface{} {
+	// For Ollama, use ollama provider; for MLX, use mlx-community
+	if backend == "ollama" {
+		return map[string]interface{}{
+			"ollama": map[string]interface{}{
+				"options": map[string]interface{}{
+					"baseURL": "http://" + host + ":" + itoa(port) + "/v1",
+				},
+				"models": map[string]interface{}{
+					modelName: map[string]interface{}{},
+				},
+			},
+		}
+	}
+	// MLX provider
 	return map[string]interface{}{
 		"mlx-community": map[string]interface{}{
 			"npm":  "@ai-sdk/openai-compatible",
@@ -88,11 +102,15 @@ func MergeConfigs(userConfig map[string]interface{}, providerConfig map[string]i
 	return result
 }
 
-// MergeConfigsWithModel merges configs and sets the model field at root level
-func MergeConfigsWithModel(userConfig map[string]interface{}, providerConfig map[string]interface{}, modelName string) map[string]interface{} {
+// MergeConfigsWithModel merges configs and sets the model field at root level based on backend
+func MergeConfigsWithModel(userConfig map[string]interface{}, providerConfig map[string]interface{}, modelName string, backend string) map[string]interface{} {
 	result := MergeConfigs(userConfig, providerConfig)
-	// Set the model field to use the mlx-community provider
-	result["model"] = "mlx-community/" + modelName
+	// Set the model field based on backend
+	if backend == "ollama" {
+		result["model"] = "ollama/" + modelName
+	} else {
+		result["model"] = "mlx-community/" + modelName
+	}
 	return result
 }
 

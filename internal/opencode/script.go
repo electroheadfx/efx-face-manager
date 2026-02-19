@@ -140,12 +140,12 @@ func WriteScript(path string, content string) error {
 
 // CreateRunnerScript is a convenience function that does the full flow:
 // Load user config, merge with generated provider, create script, return path
-func CreateRunnerScript(host string, port int, modelName string) (string, error) {
+func CreateRunnerScript(host string, port int, modelName string, backend string) (string, error) {
 	// Load existing user config
 	userConfig := LoadUserConfig()
 
 	// Generate provider config
-	providerConfig := GenerateProviderConfig(host, port, modelName)
+	providerConfig := GenerateProviderConfig(host, port, modelName, backend)
 
 	// Merge configs
 	mergedConfig := MergeConfigs(userConfig, providerConfig)
@@ -172,15 +172,15 @@ func CreateRunnerScript(host string, port int, modelName string) (string, error)
 }
 
 // CreateWebRunnerScript creates a web runner script for opencode web
-func CreateWebRunnerScript(host string, port int, modelName string, webPort int) (string, error) {
+func CreateWebRunnerScript(host string, port int, modelName string, webPort int, backend string) (string, error) {
 	// Load existing user config
 	userConfig := LoadUserConfig()
 
 	// Generate provider config
-	providerConfig := GenerateProviderConfig(host, port, modelName)
+	providerConfig := GenerateProviderConfig(host, port, modelName, backend)
 
 	// Merge configs with model field set
-	mergedConfig := MergeConfigsWithModel(userConfig, providerConfig, modelName)
+	mergedConfig := MergeConfigsWithModel(userConfig, providerConfig, modelName, backend)
 
 	// Convert to JSON
 	configJSON, err := ConfigToJSON(mergedConfig)

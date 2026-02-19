@@ -8,6 +8,7 @@ import (
 	"github.com/lmarques/efx-face-manager/internal/backend"
 	"github.com/lmarques/efx-face-manager/internal/config"
 	"github.com/lmarques/efx-face-manager/internal/model"
+	"github.com/lmarques/efx-face-manager/internal/ollama"
 	"github.com/lmarques/efx-face-manager/internal/server"
 )
 
@@ -24,8 +25,27 @@ type templatesModel struct {
 
 func newTemplatesModel(cfg *config.Config, store *model.Store, bt backend.BackendType) templatesModel {
 	templates, _ := model.LoadTemplates()
+
+	// Filter templates by backend
+	// Empty backend means MLX-only (legacy behavior)
+	// Explicit "mlx" = MLX only, "ollama" = Ollama only
+	filtered := make([]model.Template, 0)
+	for _, t := range templates {
+		if bt == "ollama" {
+			// Show only templates explicitly marked for ollama
+			if t.Backend == "ollama" {
+				filtered = append(filtered, t)
+			}
+		} else {
+			// MLX or auto: show templates with empty backend (MLX-only) or explicit "mlx"
+			if t.Backend == "" || t.Backend == "mlx" {
+				filtered = append(filtered, t)
+			}
+		}
+	}
+
 	return templatesModel{
-		templates:   templates,
+		templates:   filtered,
 		selected:    0,
 		cfg:         cfg,
 		store:       store,
@@ -91,9 +111,9 @@ func (m templatesModel) View() string {
 
 	// Calculate column widths dynamically (total = contentWidth - 8 for margins/prefix)
 	totalWidth := contentWidth - 8
-	col1Width := totalWidth * 50 / 100  // 50% for name
-	col2Width := totalWidth * 15 / 100  // 15% for type (fits "multimodal")
-	col3Width := totalWidth - col1Width - col2Width  // rest for description
+	col1Width := totalWidth * 50 / 100              // 50% for name
+	col2Width := totalWidth * 15 / 100              // 15% for type (fits "multimodal")
+	col3Width := totalWidth - col1Width - col2Width // rest for description
 
 	// Template list
 	for i, t := range m.templates {
@@ -101,17 +121,17 @@ func (m templatesModel) View() string {
 		if m.store.Exists(t.ModelName) {
 			installed = "✓"
 		}
-		
-		line := fmt.Sprintf("%s %-*s %-*s %s", 
-			installed, 
-			col1Width, truncateStr(t.Name, col1Width), 
-			col2Width, t.ModelType, 
+
+		line := fmt.Sprintf("%s %-*s %-*s %s",
+			installed,
+			col1Width, truncateStr(t.Name, col1Width),
+			col2Width, t.ModelType,
 			truncateStr(t.Description, col3Width))
 
 		if i == m.selected {
-			b.WriteString(menuItemSelectedStyle.Width(contentWidth - 4).Render("> " + line) + "\n")
+			b.WriteString(menuItemSelectedStyle.Width(contentWidth-4).Render("> "+line) + "\n")
 		} else {
-			b.WriteString(menuItemStyle.Width(contentWidth - 4).Render("  " + line) + "\n")
+			b.WriteString(menuItemStyle.Width(contentWidth-4).Render("  "+line) + "\n")
 		}
 	}
 
@@ -138,21 +158,38 @@ func (m templatesModel) View() string {
 
 // modelsModel handles installed model selection
 type modelsModel struct {
-	models   []model.Model
-	selected int
-	width    int
-	height   int
-	cfg      *config.Config
-	store    *model.Store
+	models     []model.Model
+	ollamaList []ollama.Model
+	isOllama   bool
+	selected   int
+	width      int
+	height     int
+	cfg        *config.Config
+	store      *model.Store
 }
 
 func newModelsModel(cfg *config.Config, store *model.Store) modelsModel {
-	models, _ := store.List()
+	isOllama := cfg.Backend == "ollama"
+
+	var models []model.Model
+	var ollamaList []ollama.Model
+
+	if isOllama {
+		// Load models from Ollama
+		client := ollama.NewClient()
+		ollamaList, _ = client.List()
+	} else {
+		// Load models from filesystem (MLX)
+		models, _ = store.List()
+	}
+
 	return modelsModel{
-		models:   models,
-		selected: 0,
-		cfg:      cfg,
-		store:    store,
+		models:     models,
+		ollamaList: ollamaList,
+		isOllama:   isOllama,
+		selected:   0,
+		cfg:        cfg,
+		store:      store,
 	}
 }
 
@@ -169,7 +206,10 @@ func (m modelsModel) Update(msg tea.Msg) (modelsModel, tea.Cmd) {
 				m.selected--
 			}
 		case "down", "j":
-			maxIdx := len(m.models) // includes Back option
+			maxIdx := len(m.models)
+			if m.isOllama {
+				maxIdx = len(m.ollamaList)
+			}
 			if m.selected < maxIdx {
 				m.selected++
 			}
@@ -178,11 +218,20 @@ func (m modelsModel) Update(msg tea.Msg) (modelsModel, tea.Cmd) {
 			return m, func() tea.Msg { return openTemplatesMsg{} }
 		case "enter":
 			// Back option selected
-			if m.selected == len(m.models) {
+			maxLen := len(m.models)
+			if m.isOllama {
+				maxLen = len(m.ollamaList)
+			}
+			if m.selected == maxLen {
 				return m, func() tea.Msg { return goBackMsg{} }
 			}
-			if m.selected < len(m.models) {
-				modelName := m.models[m.selected].Name
+			if m.selected < maxLen {
+				var modelName string
+				if m.isOllama {
+					modelName = m.ollamaList[m.selected].Name
+				} else {
+					modelName = m.models[m.selected].Name
+				}
 				return m, func() tea.Msg {
 					return openModelTypeMsg{model: modelName}
 				}
@@ -201,29 +250,52 @@ func (m modelsModel) View() string {
 	b.WriteString("\n\n")
 
 	// Section title
-	b.WriteString(subtitleStyle.Render("Select Installed Model"))
+	backendLabel := "MLX"
+	if m.isOllama {
+		backendLabel = "Ollama"
+	}
+	b.WriteString(subtitleStyle.Render("Select Installed Model (" + backendLabel + ")"))
 	b.WriteString("\n")
 	b.WriteString(sectionTitleStyle.Render(strings.Repeat("─", contentWidth-4)))
 	b.WriteString("\n")
 
+	// Determine model list based on backend
+	var modelCount int
+	if m.isOllama {
+		modelCount = len(m.ollamaList)
+	} else {
+		modelCount = len(m.models)
+	}
+
 	// Model list
-	if len(m.models) == 0 {
+	if modelCount == 0 {
 		b.WriteString(statusMutedStyle.Render("  No models installed"))
 		b.WriteString("\n")
 	} else {
-		for i, mdl := range m.models {
-			line := mdl.Name
-			if i == m.selected {
-				b.WriteString(menuItemSelectedStyle.Width(contentWidth - 4).Render("> " + line) + "\n")
-			} else {
-				b.WriteString(menuItemStyle.Render("  " + line) + "\n")
+		if m.isOllama {
+			for i, mdl := range m.ollamaList {
+				line := mdl.Name
+				if i == m.selected {
+					b.WriteString(menuItemSelectedStyle.Width(contentWidth-4).Render("> "+line) + "\n")
+				} else {
+					b.WriteString(menuItemStyle.Render("  "+line) + "\n")
+				}
+			}
+		} else {
+			for i, mdl := range m.models {
+				line := mdl.Name
+				if i == m.selected {
+					b.WriteString(menuItemSelectedStyle.Width(contentWidth-4).Render("> "+line) + "\n")
+				} else {
+					b.WriteString(menuItemStyle.Render("  "+line) + "\n")
+				}
 			}
 		}
 	}
 
 	// Back option
 	b.WriteString("\n")
-	if m.selected == len(m.models) {
+	if m.selected == modelCount {
 		b.WriteString(menuItemSelectedStyle.Width(contentWidth - 4).Render("> [Back]"))
 	} else {
 		b.WriteString(menuItemStyle.Render("  [Back]"))
@@ -231,7 +303,11 @@ func (m modelsModel) View() string {
 
 	// Status
 	b.WriteString("\n\n")
-	b.WriteString(infoLineStyle.Render(fmt.Sprintf("Models: %s", config.DisplayPath(m.cfg.ModelDir))))
+	if m.isOllama {
+		b.WriteString(infoLineStyle.Render(fmt.Sprintf("Ollama models (%d)", modelCount)))
+	} else {
+		b.WriteString(infoLineStyle.Render(fmt.Sprintf("Models: %s", config.DisplayPath(m.cfg.ModelDir))))
+	}
 
 	// Calculate padding to push footer to bottom
 	content := b.String()
@@ -333,7 +409,7 @@ func (m modelTypeModel) Update(msg tea.Msg) (modelTypeModel, tea.Cmd) {
 				cfg.Model = m.modelName
 				cfg.ModelPath = m.cfg.ModelDir + "/" + m.modelName
 				cfg.Type = m.types[m.selected]
-				
+
 				// Apply defaults for image types
 				switch cfg.Type {
 				case model.TypeImageGeneration:
@@ -343,7 +419,7 @@ func (m modelTypeModel) Update(msg tea.Msg) (modelTypeModel, tea.Cmd) {
 					cfg.ConfigName = "qwen-image-edit"
 					cfg.Quantize = 16
 				}
-				
+
 				return m, func() tea.Msg {
 					return openConfigPanelMsg{config: cfg}
 				}
@@ -372,9 +448,9 @@ func (m modelTypeModel) View() string {
 	// Type list
 	for i, label := range m.labels {
 		if i == m.selected {
-			b.WriteString(menuItemSelectedStyle.Width(contentWidth - 4).Render("> " + label) + "\n")
+			b.WriteString(menuItemSelectedStyle.Width(contentWidth-4).Render("> "+label) + "\n")
 		} else {
-			b.WriteString(menuItemStyle.Render("  " + label) + "\n")
+			b.WriteString(menuItemStyle.Render("  "+label) + "\n")
 		}
 	}
 

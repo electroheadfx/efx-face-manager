@@ -154,7 +154,7 @@ func (m *Manager) startOllamaWithEnv(config Config, modelDir string) (*Instance,
 	// Check if Ollama is already serving externally (port in use)
 	if !IsPortFree(config.Port) {
 		instance := &Instance{
-			Model:     "ollama-server",
+			Model:     config.Model,
 			Type:      "ollama",
 			Port:      config.Port,
 			Host:      config.Host,
@@ -189,7 +189,7 @@ func (m *Manager) startOllamaWithEnv(config Config, modelDir string) (*Instance,
 	}
 
 	instance := &Instance{
-		Model:     "ollama-server",
+		Model:     config.Model,
 		Type:      "ollama",
 		Port:      config.Port,
 		Host:      config.Host,

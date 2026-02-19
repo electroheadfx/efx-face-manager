@@ -44,7 +44,7 @@ type searchModel struct {
 	cursor       int
 	currentPage  int
 	filter       string
-	filtering    bool   // In filter input mode
+	filtering    bool // In filter input mode
 	loading      bool
 	loadedSource int    // Track which source is loaded
 	loadingMode  string // "all" or "search"
@@ -61,15 +61,21 @@ func newSearchModel(cfg *config.Config, store *model.Store, ollamaClient *ollama
 	s.Spinner = spinner.Dot
 	s.Style = spinnerStyle
 
+	// Default to Ollama Library when backend is ollama, otherwise mlx-community
+	defaultSource := 0 // mlx-community
+	if cfg.Backend == "ollama" {
+		defaultSource = 3 // Ollama Library
+	}
+
 	return searchModel{
 		cfg:          cfg,
 		store:        store,
 		hfClient:     hf.NewClient(),
 		ollamaClient: ollamaClient,
-		sourceIdx:    0,
-		loadedSource: -1,            // Not loaded yet
-		loadingMode:  loadModeAll,   // Default to All mode (load models on startup)
-		loading:      true,          // Start in loading state
+		sourceIdx:    defaultSource,
+		loadedSource: -1,          // Not loaded yet
+		loadingMode:  loadModeAll, // Default to All mode (load models on startup)
+		loading:      true,        // Start in loading state
 		spinner:      s,
 	}
 }
@@ -511,7 +517,7 @@ func (m searchModel) View() string {
 
 	// Search/filter input area - ALWAYS reserve one line for layout stability
 	var inputLine strings.Builder
-	
+
 	// Search part
 	if m.searching {
 		searchStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#04B575")).Bold(true)
@@ -520,12 +526,12 @@ func (m searchModel) View() string {
 		searchStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#04B575"))
 		inputLine.WriteString(searchStyle.Render("🔎 \"" + m.searchQuery + "\""))
 	}
-	
+
 	// Add separator if both search and filter are visible
 	if inputLine.Len() > 0 && (m.filtering || m.filter != "") {
 		inputLine.WriteString("  ")
 	}
-	
+
 	// Filter part
 	if m.filtering {
 		filterStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#7D56F4")).Bold(true)
@@ -535,7 +541,7 @@ func (m searchModel) View() string {
 		inputLine.WriteString(filterStyle.Render("🔍 \"" + m.filter + "\""))
 		inputLine.WriteString(statusMutedStyle.Render(fmt.Sprintf(" (%d)", len(m.filtered))))
 	}
-	
+
 	// Always output a fixed line (empty or with content) for layout stability
 	b.WriteString("\n") // Newline before search/filter line
 	b.WriteString(inputLine.String())
@@ -556,7 +562,7 @@ func (m searchModel) View() string {
 
 	// Items
 	perPage := m.getItemsPerPage()
-	
+
 	if m.loading {
 		b.WriteString(m.spinner.View() + " Loading models from " + hfSources[m.sourceIdx] + "...")
 		b.WriteString("\n")
@@ -678,7 +684,7 @@ func (m searchModel) View() string {
 			} else if m.currentPage == 1 {
 				pagination.WriteString(inactiveBullet.Render("○ "))
 			}
-			
+
 			// Show current and adjacent pages
 			if m.currentPage > 0 {
 				pagination.WriteString(inactiveBullet.Render("○ "))
@@ -687,7 +693,7 @@ func (m searchModel) View() string {
 			if m.currentPage < totalPages-1 {
 				pagination.WriteString(inactiveBullet.Render(" ○"))
 			}
-			
+
 			if m.currentPage < totalPages-2 {
 				pagination.WriteString(inactiveBullet.Render(" ... ○"))
 			}
@@ -733,18 +739,18 @@ var (
 
 // uninstallModel handles model uninstallation
 type uninstallModel struct {
-	cfg              *config.Config
-	store            *model.Store
-	models           []model.Model
-	selected         int
-	width            int
-	height           int
-	confirm          bool
-	confirmed        bool
-	err              error
+	cfg       *config.Config
+	store     *model.Store
+	models    []model.Model
+	selected  int
+	width     int
+	height    int
+	confirm   bool
+	confirmed bool
+	err       error
 	// Template cleanup state
-	templateCleanup    bool              // Whether we're asking about templates
-	templatesForModel  []model.Template  // Templates found for selected model
+	templateCleanup   bool             // Whether we're asking about templates
+	templatesForModel []model.Template // Templates found for selected model
 }
 
 func newUninstallModel(cfg *config.Config, store *model.Store) uninstallModel {
@@ -916,9 +922,9 @@ func (m uninstallModel) View() string {
 				line += " (symlink)"
 			}
 			if i == m.selected {
-				b.WriteString(menuItemSelectedStyle.Width(contentWidth - 4).Render("> " + line) + "\n")
+				b.WriteString(menuItemSelectedStyle.Width(contentWidth-4).Render("> "+line) + "\n")
 			} else {
-				b.WriteString(menuItemStyle.Render("  " + line) + "\n")
+				b.WriteString(menuItemStyle.Render("  "+line) + "\n")
 			}
 		}
 	}
